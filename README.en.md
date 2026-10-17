@@ -2,6 +2,10 @@
 
 [Русский](README.md) | **English**
 
+### [⬇ Download VRChat-Translator-Lite-Setup.exe](https://github.com/LAZYGOFF/vrchat-translator/releases/latest/download/VRChat-Translator-Lite-Setup.exe)
+
+Run the downloaded file and it does the rest. All versions: [Releases](https://github.com/LAZYGOFF/vrchat-translator/releases).
+
 <p align="center"><img src="screenshots/main-dark.png" width="720" alt="Main window: other players' voice and chat translated, your message sent to the VRChat chatbox"></p>
 
 > **There is a full version with VR support**: subtitles on your wrist right inside the headset (any headset via SteamVR),
@@ -85,7 +89,8 @@ All services are free; none of them needs a bank card.
 ## Installation and launch
 
 - **Requirements:** Windows 10/11, an NVIDIA GPU is recommended (speech recognition is much slower without it), about 3 GB of free space.
-- **Run `install.bat` once**: if Python 3.10–3.14 is not found, it downloads the official Python 3.12 from python.org and installs it for the current user (no admin rights needed), then downloads the components (~3 GB, mostly CUDA libraries).
+- **Easiest:** download [VRChat-Translator-Lite-Setup.exe](https://github.com/LAZYGOFF/vrchat-translator/releases/latest/download/VRChat-Translator-Lite-Setup.exe) and run it. It unpacks itself to `%LOCALAPPDATA%\VRChat Translator` and installs Python and the components. If Windows shows SmartScreen, click "More info", then "Run anyway".
+- **From source:** run `install.bat` once: if Python 3.10–3.14 is not found, it downloads the official Python 3.12 from python.org and installs it for the current user (no admin rights needed), then downloads the components (~3 GB, mostly CUDA libraries).
 - **Launch:** `run.bat` (with a console), or build the launcher `VRChat Translator.exe` with `tools\build_exe.bat` (no console window).
 - The first speech recognition downloads the model (small ≈ 500 MB, large-v3-turbo ≈ 1.6 GB).
 - If something does not start, the program shows an error window. All messages are written to `app.log`.

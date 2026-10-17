@@ -1,7 +1,3 @@
-# One-file build for a friend: "VRChat Translator Setup.exe" next to the program folder.
-# The program files are packed inside the exe (payload.zip resource) WITHOUT config.json (your API keys),
-# usage.json, app.log, chat_debug and .venv. On the friend's PC the exe unpacks itself to
-# %LOCALAPPDATA%\VRChat Translator, installs Python if needed, downloads components and starts.
 $ErrorActionPreference = 'Stop'
 $src = Split-Path $PSScriptRoot
 $out = Join-Path (Split-Path $src) 'VRChat Translator Setup.exe'
@@ -12,17 +8,14 @@ $dst = Join-Path $tmp 'files'
 New-Item -ItemType Directory -Force (Join-Path $dst 'tools') | Out-Null
 Push-Location $src
 try {
-    # 1. the normal launcher (it goes inside, next to app.py)
     & $csc /nologo /codepage:65001 /target:winexe /optimize+ /win32icon:icon.ico @refs '/out:VRChat Translator.exe' tools\launcher.cs
     if ($LASTEXITCODE) { throw 'launcher build failed' }
 
-    # 2. program files only
     Get-ChildItem $src -File |
         Where-Object { $_.Extension -in '.py', '.bat', '.ico', '.exe' -or $_.Name -in 'README.md', 'requirements.txt', 'LICENSE' } |
         Copy-Item -Destination $dst
     Get-ChildItem (Join-Path $src 'tools') -File | Copy-Item -Destination (Join-Path $dst 'tools')
 
-    # 3. safety net: no private files and none of your keys inside
     foreach ($f in 'config.json', 'usage.json', 'app.log') {
         if (Test-Path (Join-Path $dst $f)) { throw "private file got in: $f" }
     }
@@ -36,7 +29,6 @@ try {
         }
     }
 
-    # 4. pack and build the one-file exe
     $zip = Join-Path $tmp 'payload.zip'
     Compress-Archive -Path (Join-Path $dst '*') -DestinationPath $zip
     & $csc /nologo /codepage:65001 /target:winexe /optimize+ /win32icon:icon.ico @refs "/resource:$zip,payload.zip" "/out:$out" tools\launcher.cs

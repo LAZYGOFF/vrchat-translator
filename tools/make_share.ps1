@@ -1,5 +1,3 @@
-# Clean zip for sharing (called from make_share.bat). Only program files go in -
-# config.json (API keys), usage.json, app.log and .venv stay on this PC.
 $ErrorActionPreference = 'Stop'
 $src = Split-Path $PSScriptRoot
 $out = Join-Path (Split-Path $src) 'VRChat-Translator.zip'
@@ -12,7 +10,6 @@ Get-ChildItem $src -File |
     Copy-Item -Destination $dst
 Get-ChildItem (Join-Path $src 'tools') -File | Copy-Item -Destination (Join-Path $dst 'tools')
 
-# safety net: the keys must not get in even if the list above changes
 $cfg = Join-Path $src 'config.json'
 if (Test-Path $cfg) {
     $c = Get-Content $cfg -Raw -Encoding UTF8 | ConvertFrom-Json

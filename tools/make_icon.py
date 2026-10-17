@@ -1,14 +1,12 @@
-"""Рисует icon.ico (иконка exe, окна и панели задач). Запуск: .venv\\Scripts\\python tools\\make_icon.py"""
 import os
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-S = 1024  # рисуем крупно, потом уменьшаем — так края гладкие
+S = 1024
 
 
 def gradient(size, c1, c2):
-    """Диагональный перелив c1 (сверху слева) -> c2 (снизу справа)."""
     g = Image.new("RGB", (size, size))
     px = g.load()
     for y in range(size):
@@ -20,12 +18,10 @@ def gradient(size, c1, c2):
 
 def make():
     base = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    # фон — скруглённый квадрат с переливом
     mask = Image.new("L", (S, S), 0)
     ImageDraw.Draw(mask).rounded_rectangle((40, 40, S - 40, S - 40), radius=230, fill=255)
     base.paste(gradient(S, (90, 169, 255), (139, 92, 246)), (0, 0), mask)
 
-    # облачко чата с тенью
     shadow = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     sd = ImageDraw.Draw(shadow)
     bubble = (190, 230, 834, 700)
@@ -37,7 +33,6 @@ def make():
     d.rounded_rectangle(bubble, radius=150, fill=(255, 255, 255, 255))
     d.polygon(tail, fill=(255, 255, 255, 255))
 
-    # «文A» — символ перевода
     zh = ImageFont.truetype(r"C:\Windows\Fonts\msyhbd.ttc", 290)
     en = ImageFont.truetype(r"C:\Windows\Fonts\segoeuib.ttf", 300)
     d.text((375, 462), "文", font=zh, fill=(70, 80, 200, 255), anchor="mm")

@@ -1,10 +1,4 @@
-﻿// «VRChat Translator.exe»: запускает переводчик из своей папки без окна консоли.
-// Сборка: tools\build_exe.bat (компилятор C# есть в каждой Windows, ставить ничего не нужно).
-//
-// Версия «для друга» (tools\build_share_exe.bat) — один exe, внутри которого зашиты файлы программы
-// (ресурс payload.zip, без ключей и настроек). Запустили его где угодно — он сам распакуется в
-// %LOCALAPPDATA%\VRChat Translator, сам поставит Python и компоненты и запустит переводчик.
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -20,7 +14,6 @@ static class Launcher
     [STAThread]
     static int Main(string[] args)
     {
-        // для проверки сборки: распаковать в указанную папку и выйти
         if (args.Length == 2 && args[0] == "--extract-only")
             return Extract(args[1]) ? 0 : 1;
 
@@ -59,8 +52,6 @@ static class Launcher
         }
     }
 
-    /// Распаковать программу в dir. Ваши файлы (config.json, usage.json, .venv) не трогает;
-    /// если эта версия уже распакована — ничего не делает.
     static bool Extract(string dir)
     {
         try
@@ -80,7 +71,7 @@ static class Launcher
                 {
                     string target = Path.GetFullPath(Path.Combine(dir, entry.FullName));
                     if (!target.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-                        continue;  // путь вне папки — не распаковываем
+                        continue;
                     if (entry.FullName.EndsWith("/"))
                     {
                         Directory.CreateDirectory(target);

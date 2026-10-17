@@ -501,7 +501,7 @@ class SettingsWindow(ctk.CTkToplevel):
     def _tab_music(self, f):
         a = self.app
         self.music_var = self.switch(f, "Музыка в чатбоксе", a.music_on, lambda v: a.toggle_music() if v != a.music_on else None,
-                                     "«♪ Исполнитель — Трек» над головой, обновление раз в 1,6 с.")
+                                     "«♪ Исполнитель - Трек» над головой, обновление раз в 1,6 с.")
         self.slider(f, "Прятать после моего сообщения", 5, 60, a.cfg["music_pause_s"],
                     lambda v: a._set("music_pause_s", int(v)), "{:.0f} с", steps=55)
         self.note(f, f"Клавиша чата VRChat: {', '.join(a.cfg['vrchat_chat_keys'])} — пока вы в нём пишете, "

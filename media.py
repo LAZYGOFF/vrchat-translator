@@ -69,7 +69,7 @@ def format_track(track, prefix="♪"):
     # YouTube: «NIVEK FFORHS - Missing Textures» с исполнителем «NIVEK FFORHS» — не повторяем его
     if artist and artist.lower() in title.lower():
         artist = ""
-    name = f"{artist} — {title}" if artist else title
+    name = f"{artist} - {title}" if artist else title
     text = f"{prefix} {name}".strip()
     if track["pos"] is not None:
         text += f" [{_mmss(track['pos'])}/{_mmss(track['end'])}]"

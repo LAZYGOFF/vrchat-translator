@@ -1,7 +1,3 @@
-"""Внешний вид: главное окно (кнопки, субтитры, строка ввода) и окно настроек с вкладками.
-
-Логика программы — в app.py; здесь только виджеты и то, как они вызывают методы App.
-"""
 import os
 import tkinter as tk
 from tkinter import colorchooser
@@ -10,7 +6,6 @@ import customtkinter as ctk
 
 import theme
 
-# ---------- палитра (берётся из настроек: set_palette) ----------
 BG = CARD = CARD2 = HOVER = BORDER = FG = DIM = ACCENT = ""
 VOICE = CHAT = ME = MUSIC = ""
 REC, ERR = "#ef4444", "#ff6b6b"
@@ -22,7 +17,6 @@ FONT_CJK = "Microsoft YaHei UI"
 
 
 def set_palette(cfg):
-    """Цвета из настроек (тема + свои цвета) — в глобальные константы этого модуля."""
     global BG, CARD, CARD2, HOVER, BORDER, FG, DIM, ACCENT, VOICE, CHAT, ME, MUSIC, LABELS
     c = theme.resolve(cfg)
     BG, CARD, CARD2, FG, DIM, ACCENT = c["bg"], c["card"], c["card2"], c["fg"], c["dim"], c["accent"]
@@ -36,7 +30,6 @@ set_palette({})
 
 
 def see_through(app):
-    """Фон окна полупрозрачный (подложка), а текст и кнопки — нет."""
     return app.cfg["bg_opacity"] < 0.995
 HINT = ("Здесь появятся переводы.\n\n"
         "🎧 Голос — переводит, что говорят в игре\n"
@@ -49,14 +42,12 @@ ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.ico")
 
 
 def set_icon(window):
-    """Своя иконка окна. customtkinter через ~200 мс ставит свою — поэтому ставим после него."""
     if os.path.exists(ICON):
         window.after(300, lambda: window.iconbitmap(ICON))
     window.after(300, lambda: style_titlebar(window))
 
 
 def style_titlebar(window):
-    """Заголовок окна — цветом фона темы, а не синим цветом акцента Windows (Windows 11)."""
     import ctypes
 
     def colorref(color):
@@ -65,11 +56,11 @@ def style_titlebar(window):
     try:
         hwnd = int(window.wm_frame(), 16)
         dwm = ctypes.windll.dwmapi
-        for attr, color in ((35, BG), (36, FG), (34, BORDER)):  # заголовок, его текст, рамка
+        for attr, color in ((35, BG), (36, FG), (34, BORDER)):
             value = colorref(color)
             dwm.DwmSetWindowAttribute(hwnd, attr, ctypes.byref(value), ctypes.sizeof(value))
     except Exception:
-        pass  # Windows 10 так не умеет — останется как есть
+        pass
 
 
 def pill(parent, text, command, width=0):
@@ -82,16 +73,10 @@ def icon_button(parent, text, command):
                          fg_color="transparent", hover_color=HOVER, text_color=DIM, font=(FONT, 16))
 
 
-# =====================================================================
-# Главное окно
-# =====================================================================
-
 def build_main(app):
-    """Создаёт виджеты главного окна и кладёт нужные ссылки в app. Цвета — в restyle_main."""
     root = app.root
     w = app.widgets = {}
 
-    # --- верхняя панель: переключатели ---
     top = w["top"] = ctk.CTkFrame(root, corner_radius=18)
     top.pack(fill="x", padx=12, pady=(12, 8))
     app.voice_btn = pill(top, "🎧  Голос", app.toggle_voice)
@@ -106,7 +91,6 @@ def build_main(app):
     app.meter = tk.Canvas(top, width=70, height=8, highlightthickness=0)
     app.meter.pack(side="right", padx=10)
 
-    # --- низ: статус и строка ввода (пакуются раньше субтитров, чтобы те их не вытеснили) ---
     footer = ctk.CTkFrame(root, fg_color="transparent")
     footer.pack(side="bottom", fill="x", padx=16, pady=(2, 10))
     app.status_var = tk.StringVar()
@@ -129,20 +113,16 @@ def build_main(app):
                               font=(FONT_BOLD, 16))
     w["send"].pack(side="left", padx=(8, 0))
 
-    # --- субтитры ---
     box = w["box"] = ctk.CTkTextbox(root, corner_radius=18, wrap="word", border_width=0)
     box.pack(fill="both", expand=True, padx=12, pady=(0, 8))
-    app.text = box._textbox  # обычный tk.Text: у него можно задавать шрифты тегам
+    app.text = box._textbox
     app.text.configure(padx=14, pady=10, cursor="xterm", spacing1=0)
     restyle_main(app)
     show_hint(app)
 
 
 def restyle_main(app):
-    """Перекрасить главное окно под текущую палитру (после смены темы — без перезапуска)."""
     w = app.widgets
-    # при полупрозрачном фоне окно и субтитры красятся «ключевым» цветом — он становится дырой,
-    # сквозь которую видна полупрозрачная подложка (см. backdrop.py)
     surface = theme.key_color(BG) if see_through(app) else BG
     box_color = surface if see_through(app) else CARD
     app.root.configure(fg_color=surface)
@@ -172,7 +152,7 @@ def apply_fonts(app):
     t.tag_configure("trans", foreground=FG, font=(FONT, size), spacing1=2, spacing3=4)
     t.tag_configure("note", foreground=ME, font=(FONT, max(8, size - 6)))
     t.tag_configure("err", foreground=ERR, font=(FONT, max(8, size - 4)))
-    t.tag_configure("right", justify="right", rmargin=4)  # мои сообщения — справа, как в мессенджере
+    t.tag_configure("right", justify="right", rmargin=4)
     t.tag_configure("hint", foreground=DIM, font=(FONT, max(9, size - 3)), justify="center", spacing1=4)
 
 
@@ -222,7 +202,7 @@ def update_buttons(app):
     if app.cfg["mic_auto"]:
         on = app.mic_listener is not None
         paused = on and getattr(app, "vrc_state", None) is not None and app._vrc_muted()
-        if paused:  # в VRChat микрофон выключен — не переводим, пока не включите
+        if paused:
             style(app.mic_btn, False, ME, f"🔇  Пауза: микрофон VRChat выкл · {key}")
         else:
             style(app.mic_btn, on, ME, f"●  Слушаю · {key}" if on else f"🎤  Авто-микрофон · {key}")
@@ -245,10 +225,6 @@ def draw_meter(app):
         m.create_line(x, 0, x, h, fill=CHAT, width=2)
 
 
-# =====================================================================
-# Окно настроек
-# =====================================================================
-
 class SettingsWindow(ctk.CTkToplevel):
     def __init__(self, app, tab=None, geometry="600x560"):
         super().__init__(app.root)
@@ -268,7 +244,6 @@ class SettingsWindow(ctk.CTkToplevel):
         for name, build in (("Собеседники", self._tab_them), ("Мой голос", self._tab_me),
                             ("Озвучка", self._tab_tts), ("Перевод", self._tab_translate),
                             ("Музыка", self._tab_music), ("Вид", self._tab_look)):
-            # вкладка прокручивается, если строк больше, чем помещается в окно
             frame = ctk.CTkScrollableFrame(tabs.add(name), fg_color="transparent",
                                            scrollbar_button_color=CARD2, scrollbar_button_hover_color=HOVER)
             frame.pack(fill="both", expand=True)
@@ -278,8 +253,6 @@ class SettingsWindow(ctk.CTkToplevel):
         if tab:
             tabs.set(tab)
         self._refresh_status()
-
-    # ---- конструкторы строк ----
 
     def _label(self, parent, text, hint=None):
         cell = ctk.CTkFrame(parent, fg_color="transparent")
@@ -324,7 +297,6 @@ class SettingsWindow(ctk.CTkToplevel):
         self._row += 1
 
     def entry(self, parent, text, value, command, secret=False, hint=None, placeholder="", link=None):
-        """Поле ввода; link — адрес, где получить ключ: пока поле пустое, рядом кнопка «Создать ключ»."""
         self._label(parent, text, hint)
         cell = ctk.CTkFrame(parent, fg_color="transparent")
         cell.grid(row=self._row, column=1, sticky="e", padx=8, pady=(10, 0))
@@ -343,7 +315,6 @@ class SettingsWindow(ctk.CTkToplevel):
                                    font=(FONT, 12))
 
             def show_button(*_):
-                """Ключ уже есть — кнопка не нужна; стёрли ключ — кнопка вернётся."""
                 need, shown = not e.get().strip(), bool(button.winfo_manager())
                 if need and not shown:
                     e.configure(width=140)
@@ -357,7 +328,7 @@ class SettingsWindow(ctk.CTkToplevel):
                 e.configure(width=140)
                 button.pack(side="left", padx=(6, 0))
             save_key = save
-            save = lambda *_: (save_key(), show_button())  # вставили ключ мышкой и ушли из поля
+            save = lambda *_: (save_key(), show_button())
         e.bind("<Return>", save)
         e.bind("<FocusOut>", save)
         self._row += 1
@@ -369,8 +340,6 @@ class SettingsWindow(ctk.CTkToplevel):
         lbl.grid(row=self._row, column=0, columnspan=2, sticky="w", padx=8, pady=(14, 0))
         self._row += 1
         return lbl
-
-    # ---- вкладки ----
 
     def _tab_them(self, f):
         a = self.app
@@ -389,7 +358,6 @@ class SettingsWindow(ctk.CTkToplevel):
                     "Выключите, если настоящие чатбоксы не ловятся.")
 
     def _lang_picker(self, f):
-        """Языки собеседников галочками: любые вместе или «любой язык»."""
         a = self.app
         from app import THEIR_LANGS
         self._label(f, "Языки собеседников", "Для голоса и для чата. Остальное не переводится.")
@@ -408,7 +376,7 @@ class SettingsWindow(ctk.CTkToplevel):
                 a._set("their_langs", "auto")
             elif picked:
                 a._set("their_langs", "+".join(picked))
-            else:  # ни одного — нельзя: возвращаем галочку, которую сняли
+            else:
                 boxes[clicked][0].set(True)
                 return
             for code, (var, cb) in boxes.items():
@@ -535,7 +503,6 @@ class SettingsWindow(ctk.CTkToplevel):
         self._row += 1
 
     def _color_row(self, parent, title, key, color):
-        """Строка «название — образец цвета»: клик открывает выбор цвета Windows."""
         self._label(parent, title)
 
         def pick():
@@ -556,8 +523,6 @@ class SettingsWindow(ctk.CTkToplevel):
 
 
 class PriorityList(ctk.CTkFrame):
-    """Сервисы перевода по приоритету: перетаскивание мышкой, ▲▼ и выключатель у каждого."""
-
     def __init__(self, parent, app):
         super().__init__(parent, fg_color="transparent")
         from translator import NAMES, ABOUT
@@ -594,7 +559,7 @@ class PriorityList(ctk.CTkFrame):
         sw = ctk.CTkSwitch(row, text="", width=46, variable=var, progress_color=ACCENT, button_color=FG,
                            button_hover_color=FG, fg_color=HOVER, command=lambda: self._toggle(name, var.get()))
         sw.grid(row=0, column=5, rowspan=2, padx=(4, 6))
-        if name == "offline":  # запасной на любой случай — выключить нельзя
+        if name == "offline":
             sw.configure(state="disabled")
         for w in (row, handle, num):
             w.bind("<ButtonPress-1>", lambda e, n=name: self._start(n))
@@ -609,8 +574,6 @@ class PriorityList(ctk.CTkFrame):
             r["num"].configure(text=f"{i + 1}")
         self.grid_columnconfigure(0, weight=1)
 
-    # ---- перетаскивание ----
-
     def _start(self, name):
         self._drag = name
         self.rows[name]["frame"].configure(border_color=ACCENT)
@@ -620,7 +583,6 @@ class PriorityList(ctk.CTkFrame):
             return
         frames = [self.rows[n]["frame"] for n in self.order]
         y = event.y_root - self.winfo_rooty()
-        # куда встать: перед первой строкой, середина которой ниже курсора
         target = len(self.order) - 1
         for i, fr in enumerate(frames):
             if y < fr.winfo_y() + fr.winfo_height() / 2:

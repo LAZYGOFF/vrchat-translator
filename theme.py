@@ -1,6 +1,3 @@
-"""Цвета оформления: готовые темы и свои цвета из настроек (config.json: theme, theme_preset)."""
-
-# что можно перекрасить — (ключ, подпись в настройках)
 FIELDS = [
     ("bg", "Фон окна"),
     ("card", "Фон субтитров и панели"),
@@ -33,7 +30,6 @@ CUSTOM = "Своя"
 
 
 def resolve(cfg):
-    """Цвета из настроек; чего не хватает — из выбранной темы."""
     base = PRESETS.get(cfg.get("theme_preset"), PRESETS[DEFAULT])
     own = cfg.get("theme") or {}
     return {k: _valid(own.get(k)) or base[k] for k, _ in FIELDS}
@@ -58,7 +54,6 @@ def hexcolor(r, g, b):
 
 
 def mix(a, b, t):
-    """Цвет между a и b: t=0 — a, t=1 — b."""
     return hexcolor(*(x + (y - x) * t for x, y in zip(rgb(a), rgb(b))))
 
 
@@ -68,11 +63,9 @@ def luminance(color):
 
 
 def on(color):
-    """Цвет текста поверх заливки color: тёмный на светлом, белый на тёмном."""
     return "#0e1016" if luminance(color) > 150 else "#ffffff"
 
 
 def key_color(color):
-    """Почти тот же цвет, но не совпадающий ни с одним настоящим: им помечается «прозрачное»."""
     r, g, b = rgb(color)
     return hexcolor(r, g, b + 1 if b < 255 else b - 1)

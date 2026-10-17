@@ -1,4 +1,3 @@
-"""Чтение чатбоксов VRChat с экрана: снимок окна игры -> OCR -> новые сообщения на нужных языках."""
 import ctypes
 import ctypes.wintypes as wt
 import difflib
@@ -13,7 +12,7 @@ import numpy as np
 from textfilter import detect_latin, is_noise
 from window_capture import capture_window, find_vrchat_hwnd
 
-CJK = re.compile(r"[぀-ヿ㐀-鿿가-힯豈-﫿]")  # иероглифы, кана, хангыль
+CJK = re.compile(r"[぀-ヿ㐀-鿿가-힯豈-﫿]")
 HANZI = re.compile(r"[㐀-鿿豈-﫿]")
 KANA = re.compile(r"[぀-ヿ]")
 HANGUL = re.compile(r"[가-힯]")
@@ -21,13 +20,12 @@ LATIN_LANGS = {"en", "es", "de", "fr"}
 CYRILLIC = re.compile(r"[Ѐ-ӿ]")
 LATIN_WORD = re.compile(r"[A-Za-z]{2,}")
 user32 = ctypes.windll.user32
-DEBUG_KEEP = 40  # сколько кадров отладки хранить
-BG_MAX_LUM = 135  # фон чатбокса темнее этого (0–255)
+DEBUG_KEEP = 40
+BG_MAX_LUM = 135
 FPS_COUNTER = re.compile(r"\b\d{1,3}\s*FPS\b", re.I)
 
 
 def find_vrchat_rect():
-    """Клиентская область окна VRChat в экранных пикселях или None."""
     hwnd = user32.FindWindowW("UnityWndClass", "VRChat") or user32.FindWindowW(None, "VRChat")
     if not hwnd or user32.IsIconic(hwnd):
         return None
@@ -41,7 +39,6 @@ def find_vrchat_rect():
 
 
 def make_engine(threads=2):
-    """OCR на процессоре; потоков мало, чтобы не отнимать CPU у VRChat."""
     from rapidocr import RapidOCR
     return RapidOCR(params={
         "EngineConfig.onnxruntime.intra_op_num_threads": threads,
@@ -50,10 +47,6 @@ def make_engine(threads=2):
 
 
 def group_lines(lines):
-    """Склеивает строки, стоящие друг под другом, в одно сообщение (чатбокс бывает многострочным).
-
-    lines: [(text, x0, y0, x1, y1)]
-    """
     groups = []
     for text, x0, y0, x1, y1 in sorted(lines, key=lambda l: l[2]):
         h = y1 - y0
@@ -71,29 +64,22 @@ def group_lines(lines):
 
 
 def _join(texts):
-    """Китайские строки склеиваем впритык, английские — через пробел."""
     out = texts[0]
     for t in texts[1:]:
         out += (" " if out[-1:].isascii() and t[:1].isascii() else "") + t
     return out
 
 
-# строки с таблички ника: местоимения («she/her»), статус загрузки, ранги доверия
 NAMEPLATE_JUNK = re.compile(
     r"^[a-z]{2,8}\s*/\s*[a-z]{2,8}$|instantiating|loading|downloading|"
     r"^(visitor|new user|user|known user|trusted user|friend|muted|blocked)$", re.I)
 
 
 def looks_like_chatbox(img, x0, y0, x1, y1):
-    """Чатбокс VRChat — светлый текст на тёмной сероватой полупрозрачной плашке.
-
-    Таблички ников цветные (синие, зелёные, оранжевые...) или светло-серые — их отсекаем.
-    """
     return chatbox_check(img, x0, y0, x1, y1)[0]
 
 
 def chatbox_check(img, x0, y0, x1, y1):
-    """(похоже ли на чатбокс, почему) — причина нужна для отладки."""
     h_img, w_img = img.shape[:2]
     pad = max(4, int((y1 - y0) * 0.35))
     patch = img[max(0, int(y0) - pad):min(h_img, int(y1) + pad),
@@ -103,31 +89,25 @@ def chatbox_check(img, x0, y0, x1, y1):
     b, g, r = patch[..., 0], patch[..., 1], patch[..., 2]
     lum = 0.114 * b + 0.587 * g + 0.299 * r
     text = lum > 160
-    if text.mean() < 0.02 or text.mean() > 0.6:   # нет светлого текста / светлый фон
+    if text.mean() < 0.02 or text.mean() > 0.6:
         return False, f"доля светлого {text.mean():.2f} (нужно 0.02–0.6)"
     bg = patch[~text]
     bg_lum = np.median(lum[~text])
     sat = np.median((bg.max(axis=1) - bg.min(axis=1)) / (bg.max(axis=1) + 1))
-    # плашка полупрозрачная: на снегу или светлом небе она не чёрная, а серая (яркость до ~130)
     why = f"фон: яркость {bg_lum:.0f} (нужно <{BG_MAX_LUM}), цветность {sat:.2f} (нужно <0.45)"
     return bool(bg_lum < BG_MAX_LUM and sat < 0.45), why
 
 
 def clean_message(msg):
-    """Убирает с текста посторонние надписи интерфейса, прилипшие к чатбоксу (счётчик FPS)."""
     return re.sub(r"\s{2,}", " ", FPS_COUNTER.sub(" ", msg)).strip()
 
 
 def wanted(msg, langs):
-    """Нужно ли переводить сообщение. langs: {"zh"}, {"en"}, {"zh", "en"} или None (любой)."""
-    # «（是的，他明白）» — у переводчиков в чате весь текст бывает в скобках; это не пометка «(смех)»
     inner = re.sub(r"^[(（\[【](.*)[)）\]】]$", r"\1", msg.strip())
     if CYRILLIC.search(msg) or (is_noise(msg) and is_noise(inner)):
         return False
     words = LATIN_WORD.findall(msg)
-    # одно слово — скорее всего ник над головой, а не сообщение
     latin = not CJK.search(msg) and len(words) >= 2 and sum(map(len, words)) >= 6
-    # один иероглиф — чаще всего ошибочно распознанный значок интерфейса
     cjk = len(CJK.findall(msg)) >= 2
     if langs is None:
         return cjk or latin
@@ -136,8 +116,6 @@ def wanted(msg, langs):
     ko = len(HANGUL.findall(msg)) >= 2
     latin_langs = langs & LATIN_LANGS
     if latin and latin_langs:
-        # английский, испанский, немецкий и французский пишутся одними буквами — смотрим на слова;
-        # не поняли язык — переводим (лучше лишний перевод, чем пропущенное сообщение)
         guess = detect_latin(msg)
         latin = guess is None or guess in latin_langs
     else:
@@ -146,10 +124,6 @@ def wanted(msg, langs):
 
 
 def same_message(a, b):
-    """Тот же чатбокс: прочитан целиком, с обрезанным краем или с парой ошибок OCR.
-
-    Короткое сообщение внутри длинного — это разные сообщения («你好» и «你好，你是哪里人»).
-    """
     short, long_ = sorted((a, b), key=len)
     if short in long_ and len(short) >= 0.6 * len(long_):
         return True
@@ -161,7 +135,7 @@ class ChatOCR:
                  get_own_rect=lambda: None, get_langs=lambda: {"zh"}):
         self.threads = threads
         self.get_langs = get_langs
-        self.only_chatboxes = True  # False — переводить любой текст в окне (вывески, меню)
+        self.only_chatboxes = True
         self._lock = threading.Lock()
         self.get_own_rect = get_own_rect
         self.on_text = on_text
@@ -170,7 +144,7 @@ class ChatOCR:
         self.get_min_score = get_min_score
         self._seen = {}
         self._running = False
-        self.debug_dir = None   # папка: сохранять кадры с текстом, который не перевёлся
+        self.debug_dir = None
         self._debug_last = -1e9
         self._report = []
 
@@ -183,7 +157,6 @@ class ChatOCR:
         self._running = False
 
     def mark_seen(self, text):
-        """Наше собственное отправленное сообщение: когда оно появится в чатбоксе, не переводим."""
         norm = re.sub(r"\W", "", text).lower()
         with self._lock:
             self._seen[norm] = time.monotonic()
@@ -197,7 +170,7 @@ class ChatOCR:
             self._seen = {t: ts for t, ts in self._seen.items() if now - ts < 90}
             for t in self._seen:
                 if same_message(norm, t):
-                    self._seen[t] = now  # чатбокс всё ещё на экране — не переводим повторно
+                    self._seen[t] = now
                     return False
             self._seen[norm] = now
         return True
@@ -235,15 +208,12 @@ class ChatOCR:
                 time.sleep(max(0.2, self.get_interval() - (time.monotonic() - t0)))
 
     def _grab(self, sct):
-        """Кадр VRChat и строка состояния для пользователя."""
         hwnd = find_vrchat_hwnd()
         if hwnd is None:
             return None, "Чат: VRChat не найден или свёрнут — жду"
-        # Содержимое самого окна игры: работает, даже если VRChat перекрыт другими окнами
         img = capture_window(hwnd)
         if img is not None:
             return img, "Чат: читаю окно VRChat"
-        # Запасной вариант — пиксели экрана: видно только то, что не перекрыто
         region = find_vrchat_rect()
         if region is None:
             return None, "Чат: VRChat не найден или свёрнут — жду"
@@ -252,8 +222,7 @@ class ChatOCR:
         return img, "Чат: читаю экран (окно VRChat не должно быть перекрыто)"
 
     def _mask_own_window(self, img, region):
-        """Закрашивает окно переводчика, иначе OCR прочитает наши же субтитры и зациклится."""
-        own = self.get_own_rect()  # (x0, y0, x1, y1) в экранных пикселях
+        own = self.get_own_rect()
         if not own:
             return
         x0, y0 = max(own[0] - region["left"], 0), max(own[1] - region["top"], 0)
@@ -262,7 +231,7 @@ class ChatOCR:
             img[y0:y1, x0:x1] = 0
 
     def _recognize(self, engine, img):
-        self._report = []  # (текст, что с ним стало) — для отладки
+        self._report = []
         res = engine(img)
         if res.boxes is None or res.txts is None:
             return []
@@ -294,7 +263,6 @@ class ChatOCR:
         return out
 
     def _save_debug(self, img, emitted):
-        """Кадр, где виден текст, но чат его не перевёл: картинка + почему (папка chat_debug)."""
         interesting = [(t, v) for t, v in self._report if CJK.search(t) or len(LATIN_WORD.findall(t)) >= 2]
         now = time.monotonic()
         if not interesting or now - self._debug_last < 15:
@@ -310,7 +278,7 @@ class ChatOCR:
             for t, v in emitted:
                 f.write(f"{t}\n    {v}\n")
         files = sorted(os.listdir(self.debug_dir))
-        for old in files[:-2 * DEBUG_KEEP]:  # храним только последние кадры
+        for old in files[:-2 * DEBUG_KEEP]:
             try:
                 os.remove(os.path.join(self.debug_dir, old))
             except OSError:

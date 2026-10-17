@@ -1,8 +1,3 @@
-"""VRChat переводчик.
-
-Собеседники (голос из наушников и чатбоксы на экране, китайский/английский) -> русские субтитры.
-Я (микрофон по кнопке/горячей клавише или набранный текст) -> перевод -> чатбокс VRChat через OSC.
-"""
 import ctypes
 import itertools
 import os
@@ -14,7 +9,7 @@ import tkinter as tk
 import winsound
 
 try:
-    ctypes.windll.shcore.SetProcessDpiAwareness(2)  # чтобы координаты экрана совпадали с mss
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)
 except Exception:
     pass
 
@@ -22,7 +17,7 @@ import customtkinter as ctk
 
 import netcache
 
-netcache.install()  # медленный DNS (бывает до ~10 с) не тормозит перевод — адреса сайтов помним сами
+netcache.install()
 netcache.prewarm()
 
 import config
@@ -34,7 +29,6 @@ from textfilter import is_noise, not_worth_showing
 from translator import Translator, guess_lang, NAMES, ORDER
 
 MODELS = ["small", "medium", "large-v3-turbo"]
-# языки собеседников — те же, на которые можно переводить меня (в настройках — галочки, любые вместе)
 THEIR_LANGS = {"zh": "Китайский", "en": "Английский", "ja": "Японский", "ko": "Корейский",
                "es": "Испанский", "de": "Немецкий", "fr": "Французский"}
 MY_LANGS = {"Русский": "ru", "Английский": "en", "Китайский": "zh"}
@@ -60,7 +54,6 @@ class App:
     def __init__(self):
         self.cfg = config.load()
         self.ui_q = queue.Queue()
-        # микрофон (приоритет 0) распознаётся раньше голосов собеседников (1)
         self.asr_q = queue.PriorityQueue()
         self._seq = itertools.count()
         self.tr_q = queue.Queue()
@@ -77,20 +70,20 @@ class App:
             order=self.cfg["translator_order"], off=self.cfg["translator_off"],
             usage_path=config.path("usage.json"))
         self.settings_win = None
-        self._mic_asr_s = 0.0  # сколько распознавалась последняя фраза с микрофона
+        self._mic_asr_s = 0.0
         self.recognizer, self._rec_key = None, None
         self._rec_lock = threading.Lock()
         self._voice_lock = threading.Lock()
         self.capture, self.ocr, self.recorder = None, None, None
-        self.mic_listener = None  # авто-микрофон: сам ловит фразы (без F8)
-        self.speaker = None       # озвучка перевода (Piper, запасной — голоса Windows)
-        self.mixer = None         # мой микрофон + озвучка -> Line 1 (VRChat слушает его как микрофон)
+        self.mic_listener = None
+        self.speaker = None
+        self.mixer = None
         self._mixer_lock = threading.Lock()
         self.voice_on = self.chat_on = self.mic_on = False
         self.music_on = self.cfg["music_status"]
-        self._music_pause_until = 0.0  # до этого момента музыка не перебивает моё сообщение
-        self._music_shown = False      # сейчас в чатбоксе музыка (а не моё сообщение)
-        self.vrc_typing = None         # слежка за чатом самого VRChat (клавиши H / Enter / Esc)
+        self._music_pause_until = 0.0
+        self._music_shown = False
+        self.vrc_typing = None
         self.level_db = -90.0
         self.effective_thr = float(self.cfg["vad_threshold_db"])
         self._own_rect = None
@@ -113,10 +106,9 @@ class App:
         threading.Thread(target=self._warm_up_translator, daemon=True).start()
         threading.Thread(target=self._music_worker, daemon=True).start()
         threading.Thread(target=lambda: (self._restart_mixer(), self._preload_voice()), daemon=True).start()
-        # VRChat сам сообщает, включён ли микрофон (OSC, порт 9001) — авто-перевод речи только при включённом
         self.vrc_state = osc.VRChatState(on_change=lambda muted: self.ui_q.put(("vrc_mute", muted)))
         self.vrc_state.start()
-        if self.cfg["mic_auto"]:  # «Микрофон без F8»: говорите — перевод сам уходит в чатбокс, с самого запуска
+        if self.cfg["mic_auto"]:
             self.root.after(1500, lambda: self.mic_listener is None and self._toggle_mic_listener())
         self.root.protocol("WM_DELETE_WINDOW", self._quit)
         self.root.after(50, self._poll)
@@ -138,10 +130,7 @@ class App:
         except ValueError as e:
             self._status(f"vrchat_chat_keys в config.json: {e}")
 
-    # ---------- интерфейс ----------
-
     def _setup_clipboard(self):
-        # В выключенный (только для чтения) Text tkinter не ставит фокус — и Ctrl+C не работает
         self.text.bind("<Button-1>", lambda e: self.text.focus_set(), add="+")
         self.root.bind_all("<Control-KeyPress>", self._ctrl_key)
 
@@ -162,12 +151,11 @@ class App:
                                                  self.entry_menu.tk_popup(e.x_root, e.y_root)))
 
     def _ctrl_key(self, e):
-        # С русской раскладкой tkinter не узнаёт Ctrl+C/V/X — смотрим на физическую клавишу
-        if e.keycode == 65:  # A — выделить всё
+        if e.keycode == 65:
             self._select_all(e.widget)
             return "break"
         if e.keysym.lower() in ("c", "v", "x"):
-            return None  # латинская раскладка: tkinter справится сам
+            return None
         event = {67: "<<Copy>>", 86: "<<Paste>>", 88: "<<Cut>>"}.get(e.keycode)
         if event:
             e.widget.event_generate(event)
@@ -198,7 +186,6 @@ class App:
         cfg, root = self.cfg, self.root
         root.attributes("-topmost", cfg["always_on_top"], "-alpha", cfg["opacity"])
         if ui.see_through(self):
-            # фон окна — «дыра» ключевого цвета, под ней полупрозрачная подложка того же цвета
             root.attributes("-transparentcolor", theme.key_color(ui.BG))
             self.backdrop.apply(ui.BG, cfg["bg_opacity"] * cfg["opacity"], cfg["always_on_top"],
                                 cfg["hide_from_capture"])
@@ -209,7 +196,7 @@ class App:
     def _set_bg_opacity(self, value):
         was = ui.see_through(self)
         self._set("bg_opacity", round(min(max(value, 0.0), 1.0), 2))
-        if ui.see_through(self) != was:  # фон стал (или перестал быть) прозрачным — перекрасить окно
+        if ui.see_through(self) != was:
             ui.restyle_main(self)
         self._apply_window_opts()
 
@@ -227,22 +214,19 @@ class App:
         ui.restyle_main(self)
         ui.style_titlebar(self.root)
         self._apply_window_opts()
-        # окно настроек собрано со старыми цветами — открываем его заново на той же вкладке
         win = self.settings_win
         if win is not None and win.winfo_exists():
             tab, geometry = win.tabs.get(), win.geometry()
-            # сразу уничтожать нельзя: у виджетов ещё висят отложенные перерисовки -> ошибки Tk в логе
             win.withdraw()
             win.after(1500, win.destroy)
             self.settings_win = ui.SettingsWindow(self, tab=tab, geometry=geometry)
 
     def _exclude_from_capture(self):
-        # Чат читается из окна VRChat напрямую, поэтому прятать окно не нужно (по желанию — config).
         if not self.cfg["hide_from_capture"]:
             return
         try:
             hwnd = int(self.root.wm_frame(), 16)
-            ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, 0x11)  # WDA_EXCLUDEFROMCAPTURE
+            ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, 0x11)
         except Exception:
             pass
 
@@ -261,8 +245,6 @@ class App:
     def _update_buttons(self):
         ui.update_buttons(self)
 
-    # ---------- настройки ----------
-
     def _set(self, key, value):
         self.cfg[key] = value
 
@@ -277,11 +259,10 @@ class App:
         self.translator.mode = mode
 
     def _set_key(self, key, value):
-        """Ключи DeepL / Gemini / Groq и почта MyMemory из окна настроек."""
         if self.cfg.get(key) == value:
             return
         self._set(key, value)
-        config.save(self.cfg)  # ключ сохраняем сразу, а не только при закрытии программы
+        config.save(self.cfg)
         name = {"deepl_key": "deepl", "gemini_key": "gemini", "groq_key": "groq",
                 "mymemory_email": "mymemory_email"}[key]
         self.translator.set_keys(**{name: value})
@@ -297,11 +278,10 @@ class App:
         self.translator.llm_for_theirs = on
 
     def _set_translator_order(self, order, off):
-        """Свой порядок сервисов перевода (перетаскиванием в настройках) и выключенные сервисы."""
         self.translator.set_order(order, off)
         self._set("translator_order", list(self.translator.order))
         self._set("translator_off", sorted(self.translator.off))
-        config.save(self.cfg)  # сразу, а не только при закрытии: порядок не потеряется, если программу убьют
+        config.save(self.cfg)
 
     def _set_only_chatboxes(self, on):
         self._set("ocr_only_chatboxes", on)
@@ -309,7 +289,6 @@ class App:
             self.ocr.only_chatboxes = on
 
     def _provider_summary(self):
-        """«Мои → DeepL · Чужие → Google» для нижней строки."""
         def best(mine):
             for name in self.translator.order:
                 if self.translator.available(name, 1, mine)[0]:
@@ -317,10 +296,7 @@ class App:
             return "—"
         return f"Перевод: мои → {best(True)} · чужие → {best(False)}"
 
-    # ---------- распознавание ----------
-
     def _ensure_recognizer(self):
-        """Загружает модель Whisper (общая для собеседников и микрофона). Вызывать из фоновых потоков."""
         with self._rec_lock:
             key = (self.cfg["whisper_model"], self.cfg["device"])
             if self.recognizer is None or self._rec_key != key:
@@ -333,17 +309,15 @@ class App:
             return self.recognizer
 
     def _queue_asr(self, kind, audio, auto=False):
-        # пока звучит наша озвучка, не слушаем — иначе переведём собственный голос по кругу
         if (kind == "voice" or auto) and self.speaker is not None and self.speaker.busy():
             return
-        if auto and self._vrc_muted():  # микрофон в VRChat выключен — эту фразу в игре не слышно
+        if auto and self._vrc_muted():
             return
         self.asr_q.put((0 if kind == "mic" else 1, next(self._seq), kind, audio, time.monotonic()))
 
     def _asr_worker(self):
         while True:
             _, _, kind, audio, t = self.asr_q.get()
-            # голос собеседника, который ждал слишком долго, уже неактуален
             if kind == "voice" and (not self.voice_on or time.monotonic() - t > 10):
                 continue
             try:
@@ -358,10 +332,10 @@ class App:
                 self._status(f"Ошибка распознавания: {e}")
                 continue
             if kind == "mic":
-                if text and is_noise(text):  # «ага», «ммм», смех — не отправляем
+                if text and is_noise(text):
                     text = ""
                 if not text:
-                    if not self.cfg["mic_auto"]:  # в авто-режиме тишина/«эээ» — это нормально
+                    if not self.cfg["mic_auto"]:
                         self._status("Не расслышал — попробуйте ещё раз.")
                     self._typing(False)
                 elif self.cfg["review_before_send"]:
@@ -371,8 +345,6 @@ class App:
                     self.tr_q.put(("me", text, lang))
             elif text and lang != self.cfg["target_lang"]:
                 self.tr_q.put(("voice", text, lang))
-
-    # ---------- голос собеседников ----------
 
     def toggle_voice(self):
         if self.voice_on:
@@ -403,8 +375,6 @@ class App:
                 self._status(f"Голос: ошибка — {e}")
                 self.ui_q.put(("voice_off",))
 
-    # ---------- чатбоксы на экране ----------
-
     def toggle_chat(self):
         if self.chat_on:
             self.chat_on = False
@@ -415,7 +385,6 @@ class App:
         else:
             from chat_ocr import ChatOCR
             self.chat_on = True
-            # язык передаём явно: автоопределение Google иногда ошибается («я с России»)
             self.ocr = ChatOCR(lambda t: self.tr_q.put(("chat", t, guess_lang(t, unsure="auto"))), self._status,
                                lambda: self.cfg["ocr_interval"], lambda: self.cfg["ocr_min_score"],
                                self.cfg["ocr_threads"], lambda: self._own_rect,
@@ -423,13 +392,11 @@ class App:
                                         if self.cfg["their_langs"] != "auto" else None))
             self.ocr.only_chatboxes = self.cfg["ocr_only_chatboxes"]
             debug_dir = config.path("chat_debug")
-            if os.path.isdir(debug_dir):  # есть папка — сохраняем кадры с текстом, который не перевёлся
+            if os.path.isdir(debug_dir):
                 self.ocr.debug_dir = debug_dir
                 self._status("Чат: отладка включена — непрочитанные чатбоксы сохраняются в папку chat_debug.")
             self.ocr.start()
         self._update_buttons()
-
-    # ---------- мой микрофон и текст ----------
 
     def toggle_mic(self):
         if self.cfg["mic_auto"]:
@@ -448,7 +415,7 @@ class App:
             self._typing(True)
             self._status(f"Говорите... Ещё раз {self.cfg['hotkey']} или кнопка — отправить. "
                          f"Микрофон: {rec.device_label}")
-            if self.recognizer is None:  # пока человек говорит, модель успеет загрузиться
+            if self.recognizer is None:
                 threading.Thread(target=self._ensure_recognizer, daemon=True).start()
         else:
             self.mic_on = False
@@ -464,7 +431,6 @@ class App:
         self._update_buttons()
 
     def _toggle_mic_listener(self):
-        """Авто-режим: F8/кнопка включают «слушание», фразы ловятся и отправляются сами."""
         if self.mic_listener:
             self.mic_listener.stop()
             self.mic_listener = None
@@ -489,12 +455,11 @@ class App:
         self._update_buttons()
 
     def _vrc_muted(self):
-        """Выключен ли микрофон в VRChat (и включена ли проверка). Не знаем — считаем, что включён."""
         return bool(self.cfg["mic_only_unmuted"] and self.vrc_state.muted)
 
     def _set_mic_auto(self, on):
         self._set("mic_auto", on)
-        if bool(self.mic_listener) != on:  # включили — сразу слушаем, выключили — перестаём
+        if bool(self.mic_listener) != on:
             self._toggle_mic_listener()
         self._update_buttons()
 
@@ -513,8 +478,7 @@ class App:
             self._get_speaker().preload(self.cfg["out_lang"])
 
     def _restart_mixer(self):
-        """Мой голос + озвучка -> tts_device. Вызывать из фонового потока."""
-        with self._mixer_lock:  # два перезапуска подряд не должны запустить два смесителя
+        with self._mixer_lock:
             self._restart_mixer_locked()
 
     def _restart_mixer_locked(self):
@@ -524,7 +488,7 @@ class App:
         if self.cfg["voice_passthrough"]:
             from mixer import VoiceMixer
             error = None
-            for attempt in range(3):  # звуковой драйвер иногда занят в момент запуска — пробуем ещё
+            for attempt in range(3):
                 mixer = VoiceMixer(self.cfg["mic_device"], self.cfg["tts_device"], mic_gain=self.cfg["mic_gain"])
                 try:
                     mixer.start()
@@ -542,7 +506,6 @@ class App:
             self.speaker.mixer = self.mixer
 
     def _check_vrchat_mic(self, mixer):
-        """Озвучка уходит в Line 1, но если VRChat слушает другой микрофон — её никто не услышит."""
         from mixer import vrchat_mics
         mics = vrchat_mics(mixer.default_in)
         out = self.cfg["tts_device"].split(" (")[0]
@@ -552,7 +515,6 @@ class App:
                          f"VRChat → Settings → Audio → Microphone → «{self.cfg['tts_device']}».")
 
     def _set_audio(self, key, value):
-        """Сменили микрофон, устройство озвучки или пропуск голоса — перезапускаем смеситель."""
         self._set(key, value)
         threading.Thread(target=self._restart_mixer, daemon=True).start()
 
@@ -562,8 +524,6 @@ class App:
             self.entry.delete(0, "end")
             self.tr_q.put(("me", text, "auto"))
 
-    # ---------- музыка в чатбоксе ----------
-
     def toggle_music(self):
         self.music_on = not self.music_on
         self._set("music_status", self.music_on)
@@ -572,21 +532,18 @@ class App:
         self._update_buttons()
 
     def _music_paused(self):
-        """Моё сообщение важнее: пока говорю в микрофон или пишу в чат VRChat,
-        и N секунд после отправки музыку не шлём."""
         typing_in_vrchat = self.vrc_typing is not None and self.vrc_typing.typing
         speaking_auto = self.mic_listener is not None and self.mic_listener.in_speech
         return (self.mic_on or typing_in_vrchat or speaking_auto
                 or time.monotonic() < self._music_pause_until)
 
-    # вызываются из потока слежки за клавиатурой — только быстрые действия
     def _vrc_chat_opened(self):
         if self.music_on:
             self.ui_q.put(("music", "♪ пауза: вы пишете в чат VRChat"))
 
     def _vrc_chat_sent(self):
         self._music_pause_until = time.monotonic() + self.cfg["music_pause_s"]
-        self._music_shown = False  # в чатбоксе ваше сообщение — не стирать его при выключении музыки
+        self._music_shown = False
 
     def _vrc_chat_cancelled(self):
         self._music_pause_until = time.monotonic() + 1
@@ -596,10 +553,10 @@ class App:
         while True:
             time.sleep(0.1)
             if not self.music_on:
-                if self._music_shown:  # выключили — убираем трек из чатбокса
+                if self._music_shown:
                     self._send_music("")
                 continue
-            interval = max(osc.MIN_GAP, self.cfg["music_interval"])  # чаще VRChat всё равно не покажет
+            interval = max(osc.MIN_GAP, self.cfg["music_interval"])
             if self._music_paused() or time.monotonic() - last_update < interval:
                 continue
             last_update = time.monotonic()
@@ -618,7 +575,7 @@ class App:
                 self.ui_q.put(("music", text[:70]))
             else:
                 self.ui_q.put(("music", "♪ ничего не играет"))
-                if self._music_shown:  # музыка остановилась — убираем трек
+                if self._music_shown:
                     self._send_music("")
 
     def _send_music(self, text):
@@ -626,12 +583,12 @@ class App:
             self._music_shown = False
             return
         try:
-            osc.send_chatbox(text, self.cfg["osc_port"], notify=False)  # без звука каждые 5 с
+            osc.send_chatbox(text, self.cfg["osc_port"], notify=False)
         except OSError:
             return
         self._music_shown = bool(text)
         if text and self.ocr:
-            self.ocr.mark_seen(text)  # свой же трек в чатбоксе не переводим
+            self.ocr.mark_seen(text)
 
     def _typing(self, on):
         if self.cfg["send_to_chatbox"]:
@@ -639,8 +596,6 @@ class App:
                 osc.set_typing(on, self.cfg["osc_port"])
             except OSError:
                 pass
-
-    # ---------- перевод и вывод ----------
 
     def _tr_worker(self):
         while True:
@@ -650,12 +605,10 @@ class App:
                     t0 = time.monotonic()
                     out = self.translator.translate(text, lang, self.cfg["out_lang"], mine=True)
                     timing = f"перевод {time.monotonic() - t0:.1f} с ({self.translator.last_backend})"
-                    if lang != "auto":  # фраза с микрофона, а не набранный текст
+                    if lang != "auto":
                         timing = f"распознано {self._mic_asr_s:.1f} с, " + timing
                     note = None
                     if self.cfg["send_to_chatbox"]:
-                        # моё сообщение висит N секунд, потом музыка вернётся
-                        # (паузу ставим до отправки, чтобы трек не проскочил между ними)
                         self._music_pause_until = time.monotonic() + self.cfg["music_pause_s"]
                         osc.send_chatbox(out, self.cfg["osc_port"])
                         self._music_shown = False
@@ -669,10 +622,10 @@ class App:
                     self._status(("Отправлено: " if note else "Переведено (отправка в чат выключена): ")
                                  + timing)
                 else:
-                    if is_noise(text):  # смех, «hmm», (laughs) — переводить нечего
+                    if is_noise(text):
                         continue
                     out = self.translator.translate(text, lang)
-                    if not_worth_showing(text, out):  # русский латиницей или перевод = оригинал
+                    if not_worth_showing(text, out, self.cfg["target_lang"]):
                         continue
                     self.ui_q.put(("result", kind, text, out, None, None))
             except Exception as e:
@@ -681,10 +634,8 @@ class App:
                 self.ui_q.put(("result", kind, text, None, str(e), None))
 
     def _warm_up_translator(self):
-        # офлайн-модель грузим заранее: она запасная, когда онлайн-сервисы отказывают по лимиту
         self.translator.offline.load_in_background()
-        self.translator.warm_up()  # Gemini и Groq: выбрать модели и разбудить соединения
-        # первое соединение с Google бывает медленным — пусть оно случится заранее
+        self.translator.warm_up()
         try:
             self.translator.translate("hi", "en", "ru")
         except Exception:
@@ -718,7 +669,6 @@ class App:
                         self._status("Микрофон в VRChat выключен — перевод речи на паузе." if msg[1]
                                      else "Микрофон в VRChat включён — перевожу вашу речь.")
                 elif msg[0] == "review":
-                    # фраза с микрофона — в строку ввода: исправить при желании и отправить Enter
                     current = self.entry.get().strip()
                     self.entry.delete(0, "end")
                     self.entry.insert(0, f"{current} {msg[1]}".strip())
@@ -729,13 +679,12 @@ class App:
                     self.music_var.set(msg[1] if self.music_on else "")
         except queue.Empty:
             pass
-        # координаты окна для ChatOCR (tkinter нельзя трогать из других потоков)
         r = self.root
         x, y = r.winfo_rootx(), r.winfo_rooty()
         self._own_rect = (x - 10, y - 40, x + r.winfo_width() + 10, y + r.winfo_height() + 10)
         ui.draw_meter(self)
         now = time.monotonic()
-        if now - getattr(self, "_provider_shown", 0) > 1:  # какой переводчик сейчас работает
+        if now - getattr(self, "_provider_shown", 0) > 1:
             self._provider_shown = now
             self.provider_var.set(self._provider_summary())
         self.root.after(50, self._poll)
@@ -761,21 +710,19 @@ class App:
 
 
 def already_running():
-    """Второй экземпляр не сможет занять горячую клавишу и будет дублировать переводы."""
     kernel32 = ctypes.windll.kernel32
     kernel32.CreateMutexW.restype = ctypes.c_void_p
     already_running.mutex = kernel32.CreateMutexW(None, False, "VRChatTranslator.SingleInstance")
-    return kernel32.GetLastError() == 183  # ERROR_ALREADY_EXISTS
+    return kernel32.GetLastError() == 183
 
 
 def log_to_file():
-    """Запуск из exe (pythonw) идёт без консоли: всё, что программа пишет, — в app.log."""
     windowless = os.path.basename(sys.executable).lower() == "pythonw.exe"
     if not windowless and sys.stdout is not None and sys.stderr is not None:
-        return  # запущено из консоли (run.bat) — пишем туда
+        return
     path = config.path("app.log")
     try:
-        if os.path.getsize(path) > 2_000_000:  # не даём логу расти бесконечно
+        if os.path.getsize(path) > 2_000_000:
             os.remove(path)
     except OSError:
         pass
@@ -794,7 +741,6 @@ def show_error(title, text):
 
 if __name__ == "__main__":
     log_to_file()
-    # своя иконка на панели задач, а не значок Python
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("VRChatTranslator.App")
     if already_running():
         show_error("VRChat переводчик", "Переводчик уже запущен — его окно открыто.")

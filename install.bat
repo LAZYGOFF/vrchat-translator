@@ -2,7 +2,6 @@
 cd /d "%~dp0"
 if exist ".venv\Scripts\python.exe" goto deps
 
-rem Need Python 3.10-3.14. "python" can be a broken WindowsApps alias, so try the py launcher first.
 set "PY="
 for %%V in (3.12 3.13 3.11 3.10 3.14) do (
   if not defined PY py -%%V -c "import sys" >nul 2>nul && set "PY=py -%%V"

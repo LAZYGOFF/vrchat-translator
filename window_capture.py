@@ -1,4 +1,3 @@
-"""Снимок содержимого окна VRChat, даже если его перекрывают другие окна (PrintWindow)."""
 import ctypes
 import ctypes.wintypes as wt
 
@@ -6,9 +5,8 @@ import numpy as np
 
 user32 = ctypes.windll.user32
 gdi32 = ctypes.windll.gdi32
-PW_RENDERFULLCONTENT = 0x2  # нужен для DirectX-окон (Unity), иначе будет чёрный кадр
+PW_RENDERFULLCONTENT = 0x2
 
-# 64-битные дескрипторы: без явных типов ctypes обрезает их до int
 user32.GetDC.restype = wt.HDC
 user32.GetDC.argtypes = [wt.HWND]
 user32.ReleaseDC.argtypes = [wt.HWND, wt.HDC]
@@ -41,7 +39,6 @@ def find_vrchat_hwnd():
 
 
 def capture_window(hwnd):
-    """Клиентская область окна как BGR-массив или None, если не вышло."""
     rect = wt.RECT()
     user32.GetClientRect(hwnd, ctypes.byref(rect))
     w, h = rect.right, rect.bottom
@@ -52,7 +49,6 @@ def capture_window(hwnd):
     bmp = gdi32.CreateCompatibleBitmap(hdc, w, h)
     old = gdi32.SelectObject(mem, bmp)
     try:
-        # 0x1 = только клиентская область
         if not user32.PrintWindow(hwnd, mem, PW_RENDERFULLCONTENT | 0x1):
             return None
         bih = BITMAPINFOHEADER(ctypes.sizeof(BITMAPINFOHEADER), w, -h, 1, 32, 0, 0, 0, 0, 0, 0)
@@ -65,6 +61,6 @@ def capture_window(hwnd):
         gdi32.DeleteDC(mem)
         user32.ReleaseDC(hwnd, hdc)
     img = np.ascontiguousarray(buf[:, :, :3])
-    if img.max() < 8:  # чёрный кадр — PrintWindow не поддерживается для этого окна
+    if img.max() < 8:
         return None
     return img

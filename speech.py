@@ -1,4 +1,3 @@
-"""Распознавание речи через faster-whisper (локально, на видеокарте или процессоре)."""
 import importlib.util
 import os
 import re
@@ -7,7 +6,6 @@ import numpy as np
 
 from textfilter import CYRILLIC, strip_annotations
 
-# Whisper любит «слышать» эти фразы в музыке и шуме — это мусор из субтитров YouTube
 HALLUCINATIONS = [
     "谢谢观看", "感谢观看", "谢谢大家收看", "请不吝点赞", "点赞", "订阅", "转发", "打赏",
     "明镜", "点点栏目", "字幕", "优优独播", "yoyo", "amara", "下集再见", "以下是普通话的句子",
@@ -15,11 +13,10 @@ HALLUCINATIONS = [
     "like and subscribe", "продолжение следует", "субтитры", "спасибо за просмотр",
 ]
 
-PROMPTS = {"zh": "以下是普通话的句子。"}  # подсказка, чтобы иероглифы были упрощённые
+PROMPTS = {"zh": "以下是普通话的句子。"}
 
 
 def _add_nvidia_dlls():
-    """Подключает cuBLAS/cuDNN из pip-пакетов nvidia-*, чтобы не ставить CUDA Toolkit."""
     for pkg in ("nvidia.cublas", "nvidia.cudnn", "nvidia.cuda_nvrtc"):
         try:
             spec = importlib.util.find_spec(pkg)
@@ -35,7 +32,7 @@ def _add_nvidia_dlls():
 
 
 def _clean(text):
-    text = re.sub(r"(.{1,6}?)\1{4,}", r"\1\1\1", text)  # «我我我我我我» -> «我我我»
+    text = re.sub(r"(.{1,6}?)\1{4,}", r"\1\1\1", text)
     return text.strip(" 　,，.。")
 
 
@@ -58,7 +55,6 @@ class Recognizer:
 
         options = []
         if self.device in ("auto", "cuda"):
-            # на GTX 16xx float16 медленный (замер: в 5 раз), int8 — самый быстрый
             options += [("cuda", "int8"), ("cuda", "int8_float16")]
         if self.device in ("auto", "cpu"):
             options += [("cpu", "int8")]
@@ -68,7 +64,7 @@ class Recognizer:
             try:
                 model = WhisperModel(self.model_name, device=dev, compute_type=compute)
                 segments, _ = model.transcribe(np.zeros(16000, np.float32), language="zh")
-                list(segments)  # прогрев: здесь же проверяется, что CUDA реально работает
+                list(segments)
                 self.model, self.backend = model, f"{dev}/{compute}"
                 return
             except Exception as e:
@@ -77,21 +73,13 @@ class Recognizer:
         raise RuntimeError(f"Модель не загрузилась: {last_error}")
 
     def transcribe(self, audio, languages=None, detect=True):
-        """Возвращает (текст, язык) или ("", язык), если речи не было.
-
-        languages: допустимые языки (["zh"], ["zh", "en"]) или None — любой.
-        detect=False с одним языком — сразу распознаём на нём (свой микрофон).
-        """
         if languages and (detect or len(languages) > 1):
-            # Иначе русскую речь (Discord, видео) Whisper «услышит» как китайскую/английскую
             detected, _, probs = self.model.detect_language(audio)
             p = {}
             for code, prob in probs:
                 code = "zh" if code == "yue" else code
                 p[code] = p.get(code, 0.0) + prob
             top = max(p, key=p.get)
-            # самым вероятным должен быть один из нужных языков: иначе русская речь
-            # с 30% «английского» проходила бы и переводилась
             if top not in languages or p[top] < 0.3:
                 return "", top
             lang = top
@@ -117,7 +105,7 @@ class Recognizer:
 
         detected = info.language
         sep = "" if detected in ("zh", "ja") else " "
-        text = _clean(strip_annotations(sep.join(parts)))  # убираем (laughs), [Music]
+        text = _clean(strip_annotations(sep.join(parts)))
         if _is_garbage(text):
             return "", detected
         if languages and "ru" not in languages and CYRILLIC.search(text):

@@ -1,4 +1,3 @@
-"""Захват звука, который играет в наушниках/колонках (WASAPI loopback), и нарезка на фразы."""
 import math
 import queue
 import threading
@@ -10,13 +9,13 @@ import pyaudiowpatch as pyaudio
 
 from audio_thread import on_audio_thread
 
-SR = 16000          # Whisper ждёт 16 кГц моно
-FRAME = 480         # 30 мс
-PRE_ROLL = 10       # 0.3 с звука до начала фразы
-END_SILENCE = 0.6   # пауза, после которой фраза считается законченной
-MAX_PHRASE = 12.0   # длинные фразы режем, чтобы не ждать перевода вечно
-MIN_VOICED = 0.35   # слишком короткие всплески звука игнорируем
-FLOOR_MARGIN = 10   # речь должна быть громче фона (музыка мира, шум) на столько дБ
+SR = 16000
+FRAME = 480
+PRE_ROLL = 10
+END_SILENCE = 0.6
+MAX_PHRASE = 12.0
+MIN_VOICED = 0.35
+FLOOR_MARGIN = 10
 
 
 def list_output_devices():
@@ -52,7 +51,6 @@ def _wasapi_inputs(p):
 
 
 def _find_input(p, name):
-    """Микрофон по имени, иначе микрофон Windows по умолчанию."""
     dev = next((d for d in _wasapi_inputs(p) if d["name"] == name), None)
     if dev is None:
         wasapi = p.get_host_api_info_by_type(pyaudio.paWASAPI)
@@ -71,8 +69,6 @@ def list_input_devices():
 
 
 class MicRecorder:
-    """Запись своего микрофона по кнопке: start() ... stop() -> float32, 16 кГц."""
-
     def __init__(self, device_name=""):
         self.device_name = device_name
         self.device_label = ""
@@ -124,13 +120,6 @@ def _to_16k_mono(data, channels, rate):
 
 
 class SpeechCapture:
-    """Слушает звук и отдаёт в on_phrase готовые фразы (float32, 16 кГц).
-
-    mic=False — звук системы (голоса игроков), mic=True — свой микрофон (авто-режим без F8).
-    on_level(db, threshold_db) вызывается ~10 раз в секунду для индикатора громкости.
-    in_speech=True, пока идёт фраза.
-    """
-
     def __init__(self, device_name, on_phrase, on_level, get_threshold_db, mic=False,
                  end_silence=END_SILENCE):
         self.device_name = device_name
@@ -194,7 +183,6 @@ class SpeechCapture:
             try:
                 x = _to_16k_mono(self._q.get(timeout=0.1), self._channels, self._rate)
             except queue.Empty:
-                # Когда в системе тишина, loopback вообще не присылает данные
                 if not in_speech:
                     self.on_level(-90.0, self.get_threshold_db())
                     continue
@@ -204,7 +192,6 @@ class SpeechCapture:
             while len(rest) >= FRAME:
                 f, rest = rest[:FRAME], rest[FRAME:]
                 db = max(-90.0, 20 * math.log10(math.sqrt(float(np.mean(f * f))) + 1e-9))
-                # Уровень фона: быстро опускается, медленно (~10 с) поднимается
                 if floor is None:
                     floor = db
                 floor += (db - floor) * (0.05 if db < floor else 0.003)

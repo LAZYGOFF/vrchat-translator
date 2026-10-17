@@ -1,9 +1,3 @@
-"""Ваш микрофон + озвучка перевода -> одно устройство (Line 1 / Virtual Audio Cable).
-
-VRChat выбирает Line 1 своим микрофоном и слышит и вас, и озвучку. Это замена
-настройке Windows «Прослушивать с данного устройства» — делается внутри программы.
-Работает, только пока программа открыта.
-"""
 import itertools
 import threading
 import time
@@ -14,12 +8,11 @@ import pyaudiowpatch as pyaudio
 from audio_capture import _find_input
 from audio_thread import on_audio_thread
 
-JITTER = 0.02   # с: копим столько звука микрофона, прежде чем играть — без треска
-MAX_LAG = 0.08  # с: больше в очереди не держим — задержка голоса не растёт
+JITTER = 0.02
+MAX_LAG = 0.08
 
 
 def vrchat_mics(default_in):
-    """Какие микрофоны выбраны в VRChat (VR / ПК). Пустое имя там = микрофон Windows по умолчанию."""
     import winreg
     mics = {}
     try:
@@ -33,7 +26,7 @@ def vrchat_mics(default_in):
                     if name.startswith("VRC_INPUT_MIC_DEVICE_NAME" + tag) and isinstance(value, bytes):
                         mics[mode] = value.rstrip(b"\0").decode("utf-8", "replace") or default_in
     except OSError:
-        pass  # VRChat не установлен
+        pass
     return mics
 
 
@@ -51,7 +44,7 @@ class VoiceMixer:
         self.mic_gain = mic_gain
         self.running = False
         self.mic_label = ""
-        self.default_in = ""  # микрофон Windows по умолчанию
+        self.default_in = ""
         self._lock = threading.Lock()
         self._mic = np.zeros(0, np.float32)
         self._tts = np.zeros(0, np.float32)
@@ -102,7 +95,6 @@ class VoiceMixer:
             pass
 
     def play(self, rate, pcm):
-        """Подмешать озвучку; возвращается, когда она доиграет."""
         x = _resample(pcm.astype(np.float32) / 32768, rate, self.rate)
         with self._lock:
             self._tts = np.concatenate([self._tts, x])
@@ -116,7 +108,7 @@ class VoiceMixer:
         x = _resample(x, self._mic_rate, self.rate)
         with self._lock:
             self._mic = np.concatenate([self._mic, x])
-            if len(self._mic) > MAX_LAG * self.rate:  # часы устройств расходятся — не копим задержку
+            if len(self._mic) > MAX_LAG * self.rate:
                 self._mic = self._mic[-int(JITTER * self.rate):]
         return (None, pyaudio.paContinue)
 
@@ -128,7 +120,7 @@ class VoiceMixer:
                 mic, self._mic = self._mic[:frame_count], self._mic[frame_count:]
             else:
                 mic = np.zeros(frame_count, np.float32)
-                self._primed = False  # микрофон отстал — снова копим небольшой запас
+                self._primed = False
             tts, self._tts = self._tts[:frame_count], self._tts[frame_count:]
         y = mic * self.mic_gain
         y[: len(tts)] += tts

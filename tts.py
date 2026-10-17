@@ -1,8 +1,3 @@
-"""Озвучка перевода офлайн-голосами Piper (скачиваются в кэш программы, в Windows ничего не ставится).
-
-Если голос Piper не загрузился, пробуем голоса самой Windows.
-Звук идёт в VoiceMixer (вместе с вашим микрофоном в Line 1) или прямо в выбранное устройство.
-"""
 import asyncio
 import io
 import os
@@ -11,15 +6,15 @@ import time
 import wave
 
 import numpy as np
-import onnxruntime  # noqa: F401  — до winrt, иначе onnxruntime потом падает (см. media.py)
+import onnxruntime
 import pyaudiowpatch as pyaudio
 
 PIPER_REPO = "rhasspy/piper-voices"
-PIPER_VOICES = {  # язык перевода -> голос Piper (меняется в config.json: tts_voices)
+PIPER_VOICES = {
     "en": "en/en_US/lessac/medium/en_US-lessac-medium",
     "zh": "zh/zh_CN/huayan/medium/zh_CN-huayan-medium",
     "ko": "ko/ko_KR/kss/medium/ko_KR-kss-medium",
-    "ja": "ja/ja_JP/hi_fi_captain/medium/ja_JP-hi_fi_captain-medium",  # нужен pyopenjtalk-plus
+    "ja": "ja/ja_JP/hi_fi_captain/medium/ja_JP-hi_fi_captain-medium",
     "es": "es/es_ES/davefx/medium/es_ES-davefx-medium",
     "de": "de/de_DE/thorsten/medium/de_DE-thorsten-medium",
     "fr": "fr/fr_FR/siwis/medium/fr_FR-siwis-medium",
@@ -27,7 +22,6 @@ PIPER_VOICES = {  # язык перевода -> голос Piper (меняет�
 
 
 def list_output_devices():
-    """Устройства вывода (MME: Windows сама подгоняет частоту звука)."""
     p = pyaudio.PyAudio()
     try:
         mme = p.get_host_api_info_by_type(pyaudio.paMME)["index"]
@@ -38,7 +32,6 @@ def list_output_devices():
 
 
 def _piper_model(name):
-    """Путь к голосу: с диска, а если его ещё нет — скачать (~60 МБ, один раз)."""
     os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
     from huggingface_hub import hf_hub_download
     try:
@@ -51,12 +44,10 @@ def _piper_model(name):
 
 
 class Speaker:
-    """Озвучивает текст в отдельном потоке; busy() — пока звук играет (и чуть после)."""
-
     def __init__(self, log=print, voices=None, mixer=None):
         self.log = log
         self.voices = {**PIPER_VOICES, **(voices or {})}
-        self.mixer = mixer          # VoiceMixer или None — тогда прямо в устройство
+        self.mixer = mixer
         self.speaking = False
         self.last_end = 0.0
         self._piper = {}
@@ -64,18 +55,16 @@ class Speaker:
         self._loop = None
 
     def busy(self):
-        """Звучит озвучка или только что закончилась (эхо в микрофоне/игре ещё не стихло)."""
         return self.speaking or time.monotonic() - self.last_end < 0.8
 
     def preload(self, lang):
-        """Скачать и загрузить голос заранее, чтобы первая фраза не ждала."""
         threading.Thread(target=self._piper_voice, args=(lang,), daemon=True).start()
 
     def say_async(self, text, lang, device_name):
         threading.Thread(target=self._say, args=(text, lang, device_name), daemon=True).start()
 
     def _say(self, text, lang, device_name):
-        with self._lock:  # фразы не накладываются друг на друга
+        with self._lock:
             try:
                 audio = self._synthesize_piper(text, lang) or self._synthesize_windows(text, lang)
                 if audio is None:
@@ -92,8 +81,6 @@ class Speaker:
                 if self.speaking:
                     self.last_end = time.monotonic()
                 self.speaking = False
-
-    # ---- Piper (офлайн, основной) ----
 
     def _piper_voice(self, lang):
         key = lang.split("-")[0].lower()
@@ -119,8 +106,6 @@ class Speaker:
             return None
         pcm = np.concatenate([np.frombuffer(c.audio_int16_bytes, np.int16) for c in chunks])
         return chunks[0].sample_rate, pcm
-
-    # ---- голоса Windows (запасной вариант) ----
 
     def _synthesize_windows(self, text, lang):
         from winrt.windows.media.speechsynthesis import SpeechSynthesizer

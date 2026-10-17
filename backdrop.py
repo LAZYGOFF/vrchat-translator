@@ -1,10 +1,3 @@
-"""Полупрозрачный фон окна, при котором текст и кнопки остаются полностью непрозрачными.
-
-Windows не умеет делать полупрозрачным только фон обычного окна: «-alpha» просвечивает всё сразу,
-вместе с текстом. Поэтому так: в самом окне фон помечается «ключевым» цветом и становится дырой
-(-transparentcolor), а прямо под окном лежит вторая, пустая полупрозрачная «подложка» того же цвета.
-Подложка ходит за окном, прячется вместе с ним и всегда остаётся под ним.
-"""
 import ctypes
 import ctypes.wintypes as wt
 import tkinter as tk
@@ -18,7 +11,7 @@ gdi32.CreateRoundRectRgn.restype = wt.HANDLE
 
 SWP_NOACTIVATE, SWP_SHOWWINDOW = 0x0010, 0x0040
 WDA_NONE, WDA_EXCLUDEFROMCAPTURE = 0x0, 0x11
-CORNER = 8  # радиус скругления окна в Windows 11 (при масштабе 100 %)
+CORNER = 8
 
 
 def _hwnd(window):
@@ -28,7 +21,7 @@ def _hwnd(window):
 class Backdrop:
     def __init__(self, root, on_wheel=None):
         self.root = root
-        self.on_wheel = on_wheel  # колесо мыши над прозрачной частью — прокрутка субтитров
+        self.on_wheel = on_wheel
         self.win = None
         self._rect = None
         self._hidden_capture = False
@@ -38,13 +31,12 @@ class Backdrop:
         return self.win is not None
 
     def apply(self, color, alpha, topmost, hide_from_capture=False):
-        """alpha < 1 — включить подложку (цвет color), иначе убрать её."""
         if alpha >= 0.995:
             self.disable()
             return
         if self.win is None:
             self.win = tk.Toplevel(self.root)
-            self.win.overrideredirect(True)  # без рамки и без кнопки на панели задач
+            self.win.overrideredirect(True)
             self.win.bind("<Button>", lambda e: self.root.focus_force())
             if self.on_wheel:
                 self.win.bind("<MouseWheel>", self.on_wheel)
@@ -75,7 +67,6 @@ class Backdrop:
         self.win.after(100, self._tick)
 
     def sync(self, *_):
-        """Подложка — ровно под клиентской частью окна и сразу под ним по глубине."""
         if self.win is None:
             return
         root = self.root
@@ -95,18 +86,15 @@ class Backdrop:
             hwnd, root_hwnd = _hwnd(self.win), _hwnd(root)
         except (tk.TclError, ValueError):
             return
-        # SetWindowPos со «вставить после окна программы» кладёт подложку прямо под него
         user32.SetWindowPos(hwnd, root_hwnd, *rect, SWP_NOACTIVATE | SWP_SHOWWINDOW)
         if rect != self._rect:
             self._rect = rect
             self._round_bottom(hwnd, rect[2], rect[3], state == "zoomed")
 
     def _round_bottom(self, hwnd, w, h, zoomed):
-        """Нижние углы окна Windows 11 скруглены — скругляем и подложку, чтобы не торчала."""
         r = 0 if zoomed else round(CORNER * self.root.winfo_fpixels("1i") / 96)
         if r <= 0:
             user32.SetWindowRgn(hwnd, None, True)
             return
-        # прямоугольник со скруглёнными углами, верх которого спрятан выше окна: скруглён только низ
         rgn = gdi32.CreateRoundRectRgn(0, -2 * r, w + 1, h + 1, 2 * r, 2 * r)
-        user32.SetWindowRgn(hwnd, rgn, True)  # регион теперь принадлежит окну, удалять не нужно
+        user32.SetWindowRgn(hwnd, rgn, True)

@@ -152,7 +152,8 @@ The **"Music"** button shows what is playing on your PC above your head: "♪ Ar
 ## Good to know
 
 - A VRChat chatbox fits 144 characters; longer text is cut. Speak in short phrases.
-- **The offline translation model** (NLLB-200 by Meta, ~620 MB, downloaded once) uses about 600 MB of video memory. If VRChat starts to lag, set `"offline_device": "cpu"` in `config.json` (0.4–0.9 s per phrase on the CPU). The model's license is CC-BY-NC 4.0: non-commercial use only.
+- The program runs at a lower priority (CPU and GPU), so VRChat keeps its FPS.
+- **The offline translation model** (NLLB-200 by Meta, ~620 MB, downloaded once) uses about 600 MB of video memory. It is loaded only when the online services fail or "Offline only" is selected, so normally it does not use your GPU at all. If VRChat starts to lag, set `"offline_device": "cpu"` in `config.json` (0.4–0.9 s per phrase on the CPU). The model's license is CC-BY-NC 4.0: non-commercial use only.
 - The translator window is visible in screenshots and OBS. To hide it (e.g. on stream), set `"hide_from_capture": true` in `config.json`.
 - **Where the chat image comes from.** The program captures the image directly from the VRChat window, so chatboxes are visible even if a browser, Discord or the translator window is on top of the game. If VRChat is **minimized**, the game draws nothing, and the program waits until it is restored.
 - **How the program tells chat from other text.** Only light text on a dark greyish plate (like a VRChat chatbox) is translated. Not translated: name plates, "she/her" and "Instantiating" lines, world signs, UI icons, single characters. If real chatboxes are not picked up, set `"ocr_only_chatboxes": false` in `config.json`.

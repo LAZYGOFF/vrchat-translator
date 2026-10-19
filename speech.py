@@ -88,7 +88,7 @@ class Recognizer:
         segments, info = self.model.transcribe(
             audio,
             language=lang,
-            beam_size=3,
+            beam_size=1,
             vad_filter=True,
             vad_parameters={"min_silence_duration_ms": 400},
             condition_on_previous_text=False,

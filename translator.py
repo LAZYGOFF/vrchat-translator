@@ -33,7 +33,17 @@ LANG_NAMES = {"ru": "Russian", "en": "English", "zh": "Simplified Chinese", "zh-
 LLM_PROMPT = ("You translate short chat messages in the social VR game VRChat. "
               "Translate the message from {src} to {dst}. Keep the tone, slang and emojis natural, "
               "as a native speaker would write in a game chat; keep it about as short as the original. "
+              "Keep the original punctuation: use a question mark only if the original is a question. "
               "Reply with the translation only: no quotes, no explanations, no transliteration.")
+QUESTION_WORDS = re.compile(r"(?<!\w)(как|где|что|чего|чем|почему|зачем|кто|кого|кому|когда|куда|откуда|сколько|"
+                            r"какой|какая|какое|какие|каких|чей|чья|ли|разве|неужели|а ты|а вы|how|what|where|why|who|when|"
+                            r"which|whose)(?!\w)|吗|呢|什么|哪|谁|为什么|怎么|几|多少|か|까", re.I)
+
+
+def keep_question(source, result):
+    if re.search(r"[?？]", source) or QUESTION_WORDS.search(source):
+        return result
+    return re.sub(r"\s*[?？]+$", "", result) or result
 
 NAMES = {"deepl": "DeepL", "gemini": "Gemini", "groq": "Groq",
          "google": "Google", "mymemory": "MyMemory", "offline": "офлайн"}
@@ -63,6 +73,10 @@ class Overloaded(Exception):
 
 
 class BadKey(Exception):
+    pass
+
+
+class Unavailable(Exception):
     pass
 
 
@@ -259,6 +273,10 @@ class Translator:
                 self._rest(name, self._until_period_end(name), "исчерпал лимит")
                 errors.append(f"{NAMES[name]}: лимит исчерпан")
                 continue
+            except Unavailable:
+                self._rest(name, COOLDOWN, "недоступен в вашей стране (нужен VPN)")
+                errors.append(f"{NAMES[name]}: недоступен в стране")
+                continue
             except BadKey:
                 self._disabled.add(name)
                 self.on_notice(f"Ключ {NAMES[name]} не подходит — проверьте его в настройках.")
@@ -269,6 +287,7 @@ class Translator:
                 continue
             result = (result or "").strip().lstrip(",.;:，。；： ")
             if result:
+                result = keep_question(text, result)
                 if name != "offline":
                     self.usage.add(name, chars)
                 if name == "deepl":
@@ -400,8 +419,7 @@ class Translator:
         if r.status_code in (400, 401, 403):
             low = r.text.lower()
             if "location is not supported" in low:
-                self.on_notice("Gemini недоступен в вашей стране — пропускаю его.")
-                raise BadKey()
+                raise Unavailable()
             if "api key" in low or "api_key" in low or r.status_code in (401, 403):
                 raise BadKey()
         r.raise_for_status()
@@ -465,8 +483,7 @@ class Translator:
         if r.status_code == 401:
             raise BadKey()
         if r.status_code == 403:
-            self.on_notice("Groq отказал в доступе (возможно, недоступен в вашей стране) — пропускаю его.")
-            raise BadKey()
+            raise Unavailable()
         if r.status_code == 503:
             raise Overloaded()
         if r.status_code == 429:

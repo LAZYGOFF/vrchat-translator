@@ -43,6 +43,22 @@ def _piper_model(name):
     return path
 
 
+def _espeak_data_dir():
+    from piper.phonemize_espeak import ESPEAK_DATA_DIR
+    src = str(ESPEAK_DATA_DIR)
+    if src.isascii():
+        return src
+    import ctypes
+    buf = ctypes.create_unicode_buffer(1024)
+    if ctypes.windll.kernel32.GetShortPathNameW(src, buf, 1024) and buf.value.isascii():
+        return buf.value
+    dst = os.path.join(os.environ.get("PROGRAMDATA", r"C:\ProgramData"), "VRChat Translator", "espeak-ng-data")
+    if not os.path.isfile(os.path.join(dst, "phontab")):
+        import shutil
+        shutil.copytree(src, dst, dirs_exist_ok=True)
+    return dst
+
+
 class Speaker:
     def __init__(self, log=print, voices=None, mixer=None):
         self.log = log
@@ -52,6 +68,7 @@ class Speaker:
         self.last_end = 0.0
         self._piper = {}
         self._lock = threading.Lock()
+        self._load_lock = threading.Lock()
         self._loop = None
 
     def busy(self):
@@ -86,10 +103,19 @@ class Speaker:
         key = lang.split("-")[0].lower()
         if key not in self.voices:
             return None
+        with self._load_lock:
+            return self._load_piper(key)
+
+    def _load_piper(self, key):
         if key not in self._piper:
             from piper import PiperVoice
             self.log(f"Озвучка: загружаю голос ({key})...")
-            self._piper[key] = PiperVoice.load(_piper_model(self.voices[key]))
+            model = _piper_model(self.voices[key])
+            voice = PiperVoice.load(model, espeak_data_dir=_espeak_data_dir())
+            opts = onnxruntime.SessionOptions()
+            opts.intra_op_num_threads, opts.inter_op_num_threads = 2, 1
+            voice.session = onnxruntime.InferenceSession(model, sess_options=opts, providers=["CPUExecutionProvider"])
+            self._piper[key] = voice
             self.log(f"Озвучка: голос ({key}) готов.")
         return self._piper[key]
 

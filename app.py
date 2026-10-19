@@ -50,8 +50,20 @@ def beep(freq):
     threading.Thread(target=winsound.Beep, args=(freq, 90), daemon=True).start()
 
 
+def yield_to_game():
+    kernel32 = ctypes.windll.kernel32
+    kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+    me = ctypes.c_void_p(kernel32.GetCurrentProcess())
+    kernel32.SetPriorityClass(me, 0x4000)
+    try:
+        ctypes.windll.gdi32.D3DKMTSetProcessSchedulingPriorityClass(me, 1)
+    except (AttributeError, OSError):
+        pass
+
+
 class App:
     def __init__(self):
+        yield_to_game()
         self.cfg = config.load()
         self.ui_q = queue.Queue()
         self.asr_q = queue.PriorityQueue()
@@ -257,6 +269,8 @@ class App:
     def _set_translator_mode(self, mode):
         self._set("translator", mode)
         self.translator.mode = mode
+        if mode == "offline":
+            self.translator.offline.load_in_background()
 
     def _set_key(self, key, value):
         if self.cfg.get(key) == value:
@@ -634,7 +648,8 @@ class App:
                 self.ui_q.put(("result", kind, text, None, str(e), None))
 
     def _warm_up_translator(self):
-        self.translator.offline.load_in_background()
+        if self.translator.mode == "offline":
+            self.translator.offline.load_in_background()
         self.translator.warm_up()
         try:
             self.translator.translate("hi", "en", "ru")

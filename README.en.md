@@ -6,7 +6,7 @@
 
 Run the downloaded file and it does the rest. All versions: [Releases](https://github.com/LAZYGOFF/vrchat-translator/releases).
 
-<p align="center"><img src="screenshots/main-dark.png" width="720" alt="Main window: other players' voice and chat translated, your message sent to the VRChat chatbox"></p>
+<p align="center"><img src="screenshots/promo/01-hero.png" width="100%" alt="VRChat Translator"></p>
 
 > **There is a full version with VR support**: subtitles on your wrist right inside the headset (any headset via SteamVR),
 > a "Translation on/off" button you tap with your other hand, speech translation on a controller button. It gets updates first.
@@ -32,32 +32,15 @@ Speech and text recognition run offline. Translation uses "all services in turn"
 
 ## Screenshots
 
-<table>
-<tr>
-<td width="50%"><img src="screenshots/main-transparent.png" alt="Neon theme with a transparent background"><br><sub>Transparent background: the game shows through, text stays sharp (Neon theme)</sub></td>
-<td width="50%"><img src="screenshots/main-light.png" alt="Light theme"><br><sub>Light theme</sub></td>
-</tr>
-<tr>
-<td><img src="screenshots/settings-look.png" alt="Look tab"><br><sub>⚙ → Look: themes, transparency, custom colors</sub></td>
-<td><img src="screenshots/translator-order.png" alt="Order of translators"><br><sub>⚙ → Translation: your own order of translators and usage of each</sub></td>
-</tr>
-<tr>
-<td><img src="screenshots/partner-languages.png" alt="Other players' languages"><br><sub>Other players' languages, any combination</sub></td>
-<td><img src="screenshots/api-key-buttons.png" alt="Create key buttons"><br><sub>Keys are optional; "Create key" opens the right page</sub></td>
-</tr>
-</table>
+<img src="screenshots/promo/02-listen.png" width="100%" alt="Other players' voice and chatboxes translated">
 
-**Full version only (VR):**
+<img src="screenshots/promo/03-speak.png" width="100%" alt="Your speech goes to the chatbox in their language">
 
-<table>
-<tr>
-<td width="50%"><img src="screenshots/vr-panel.png" alt="VR subtitle panel"><br><sub>Subtitle panel on your wrist in the headset</sub></td>
-<td width="50%"><img src="screenshots/vr-settings.png" alt="VR tab"><br><sub>⚙ → VR: placement, size, opacity</sub></td>
-</tr>
-<tr>
-<td colspan="2"><img src="screenshots/vr-toggle.png" alt="Translation ON and OFF button"><br><sub>"Translation: ON / OFF": tap it with a finger of your other hand</sub></td>
-</tr>
-</table>
+<img src="screenshots/promo/04-vr.png" width="100%" alt="Full version: subtitles on your wrist in the headset">
+
+<img src="screenshots/promo/05-engines.png" width="100%" alt="Free translation services in turn">
+
+<img src="screenshots/promo/06-themes.png" width="100%" alt="Themes and a transparent background over the game">
 
 ## Window
 

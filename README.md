@@ -6,7 +6,7 @@
 
 Запустите скачанный файл, остальное он сделает сам. Все версии: [Releases](https://github.com/LAZYGOFF/vrchat-translator/releases).
 
-<p align="center"><img src="screenshots/main-dark.png" width="720" alt="Главное окно: перевод голоса и чата собеседников, ваше сообщение ушло в чатбокс VRChat"></p>
+<p align="center"><img src="screenshots/promo/01-hero.png" width="100%" alt="VRChat переводчик"></p>
 
 > **Есть полная версия с поддержкой VR**: субтитры на запястье прямо в шлеме (любой шлем через SteamVR),
 > кнопка «Перевод вкл/выкл» касанием другой руки, перевод речи по кнопке контроллера. Обновляется первой.
@@ -29,32 +29,15 @@
 
 ## Как выглядит
 
-<table>
-<tr>
-<td width="50%"><img src="screenshots/main-transparent.png" alt="Тема Неон с прозрачным фоном"><br><sub>Прозрачный фон: игра просвечивает, текст чёткий (тема «Неон»)</sub></td>
-<td width="50%"><img src="screenshots/main-light.png" alt="Светлая тема"><br><sub>Светлая тема</sub></td>
-</tr>
-<tr>
-<td><img src="screenshots/settings-look.png" alt="Вкладка Вид"><br><sub>⚙ → Вид: темы, прозрачность, свои цвета</sub></td>
-<td><img src="screenshots/translator-order.png" alt="Порядок переводчиков"><br><sub>⚙ → Перевод: свой порядок переводчиков, расход каждого</sub></td>
-</tr>
-<tr>
-<td><img src="screenshots/partner-languages.png" alt="Языки собеседников"><br><sub>Языки собеседников, любые вместе</sub></td>
-<td><img src="screenshots/api-key-buttons.png" alt="Кнопки Создать ключ"><br><sub>Ключи необязательны; «Создать ключ» открывает нужный сайт</sub></td>
-</tr>
-</table>
+<img src="screenshots/promo/02-listen.png" width="100%" alt="Перевод голоса и чатбоксов собеседников">
 
-**Только в полной версии (VR):**
+<img src="screenshots/promo/03-speak.png" width="100%" alt="Ваша речь в чатбокс на их языке">
 
-<table>
-<tr>
-<td width="50%"><img src="screenshots/vr-panel.png" alt="VR-панель субтитров"><br><sub>Панель субтитров на запястье в шлеме</sub></td>
-<td width="50%"><img src="screenshots/vr-settings.png" alt="Вкладка VR"><br><sub>⚙ → VR: где показывать, размер, прозрачность</sub></td>
-</tr>
-<tr>
-<td colspan="2"><img src="screenshots/vr-toggle.png" alt="Кнопка Перевод ВКЛ и ВЫКЛ"><br><sub>«Перевод: ВКЛ / ВЫКЛ» касанием пальца другой руки</sub></td>
-</tr>
-</table>
+<img src="screenshots/promo/04-vr.png" width="100%" alt="Полная версия: субтитры на запястье в шлеме">
+
+<img src="screenshots/promo/05-engines.png" width="100%" alt="Перевод через бесплатные сервисы по очереди">
+
+<img src="screenshots/promo/06-themes.png" width="100%" alt="Темы и прозрачный фон поверх игры">
 
 ## Окно
 

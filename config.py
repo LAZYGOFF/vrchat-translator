@@ -19,7 +19,7 @@ DEFAULTS = {
     "gemini_model": "",
     "groq_model": "",
     "llm_for_theirs": True,
-    "translator_order": ["deepl", "gemini", "groq", "google", "mymemory", "offline"],
+    "translator_order": ["deepl", "gemini", "groq", "bing", "google", "mymemory", "offline"],
     "translator_off": [],
     "keys_for_mine_only": True,
     "deepl_month_limit": 495000,

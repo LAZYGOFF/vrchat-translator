@@ -12,6 +12,10 @@ from bs4 import BeautifulSoup
 from textfilter import detect_latin
 
 GOOGLE_URL = "https://translate.google.com/m"
+BING_URL = "https://www.bing.com/Translator"
+BING_LANG = {"zh": "zh-Hans", "zh-CN": "zh-Hans", "auto": "auto-detect"}
+BING_HEADERS = {"Referer": BING_URL, "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                                                   "(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"}
 MYMEMORY_URL = "https://api.mymemory.translated.net/get"
 TIMEOUT = (3, 5)
 GOOGLE_PAUSE = 0.3
@@ -35,6 +39,14 @@ LLM_PROMPT = ("You translate short chat messages in the social VR game VRChat. "
               "as a native speaker would write in a game chat; keep it about as short as the original. "
               "Keep the original punctuation: use a question mark only if the original is a question. "
               "Reply with the translation only: no quotes, no explanations, no transliteration.")
+LLM_SPOKEN = (" The message is an automatic speech recognition transcript of casual speech, so some words may be "
+              "misheard: replaced by similar-sounding words (in Chinese, homophones with the same or close pinyin, "
+              "e.g. 事实 shìshí heard instead of 试试 shìshi). If a word does not fit the meaning of the sentence or "
+              "the conversation, silently replace it with the similar-sounding word that fits, then translate what "
+              "the speaker most likely meant.")
+LLM_CONTEXT = (" The user turn may start with recent conversation lines for context. Use them only to understand "
+               "the message; translate only the text after \"Message:\".")
+CONTEXT_LINES = 5
 QUESTION_WORDS = re.compile(r"(?<!\w)(как|где|что|чего|чем|почему|зачем|кто|кого|кому|когда|куда|откуда|сколько|"
                             r"какой|какая|какое|какие|каких|чей|чья|ли|разве|неужели|а ты|а вы|how|what|where|why|who|when|"
                             r"which|whose)(?!\w)|吗|呢|什么|哪|谁|为什么|怎么|几|多少|か|까", re.I)
@@ -45,13 +57,14 @@ def keep_question(source, result):
         return result
     return re.sub(r"\s*[?？]+$", "", result) or result
 
-NAMES = {"deepl": "DeepL", "gemini": "Gemini", "groq": "Groq",
+NAMES = {"deepl": "DeepL", "gemini": "Gemini", "groq": "Groq", "bing": "Bing",
          "google": "Google", "mymemory": "MyMemory", "offline": "офлайн"}
-ORDER = ["deepl", "gemini", "groq", "google", "mymemory", "offline"]
+ORDER = ["deepl", "gemini", "groq", "bing", "google", "mymemory", "offline"]
 ABOUT = {
     "deepl": "лучшее качество · лимит в символах",
     "gemini": "ИИ, понимает сленг и контекст",
     "groq": "ИИ, очень быстрый",
+    "bing": "без ключа · Microsoft, точнее Google на сленге",
     "google": "без ключа · иногда временно ограничивает",
     "mymemory": "без ключа · дневной лимит",
     "offline": "на вашей видеокарте · работает всегда",
@@ -159,6 +172,8 @@ class Translator:
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/126.0 Safari/537.36")
         self._google_lock = threading.Lock()
+        self._bing_lock = threading.Lock()
+        self._bing_auth = None
         self._model_lock = threading.Lock()
         self._last_google = 0.0
         self.deepl_quota = None
@@ -166,8 +181,12 @@ class Translator:
         self.refresh_deepl_quota()
 
     def set_order(self, order=None, off=()):
-        order = [n for n in (order or ORDER) if n in ORDER]
-        self.order = list(dict.fromkeys(order)) + [n for n in ORDER if n not in order]
+        order = list(dict.fromkeys(n for n in (order or ORDER) if n in ORDER))
+        for i, name in reversed(list(enumerate(ORDER))):
+            if name not in order:
+                after = next((order.index(n) for n in ORDER[i + 1:] if n in order), len(order))
+                order.insert(after, name)
+        self.order = order
         self.off = set(off) & set(ORDER) - {"offline"}
 
     def set_keys(self, **keys):
@@ -239,7 +258,7 @@ class Translator:
             return False, "отдыхает после отказа"
         return True, ""
 
-    def translate(self, text, source="auto", target=None, mine=False):
+    def translate(self, text, source="auto", target=None, mine=False, spoken=False, context=()):
         target = target or self.target
         key = (text, source, target)
         if key in self._cache:
@@ -258,7 +277,7 @@ class Translator:
                 continue
             started = time.monotonic()
             try:
-                result = self._call(name, text, src, target)
+                result = self._call(name, text, src, target, spoken, context)
                 if name == "google" and time.monotonic() - started > GOOGLE_SLOW:
                     self._rest(name, COOLDOWN, "отвечает медленно")
             except Overloaded:
@@ -343,7 +362,7 @@ class Translator:
                     model = self.models.get(name) or "модель выберется при первом переводе"
                     state = f"{self.usage.today(name):,} симв. сегодня · {model}".replace(",", " ")
                     rows.append((NAMES[name], state if ok else why, ok))
-            elif name == "google":
+            elif name in ("google", "bing"):
                 rows.append((NAMES[name], "работает" if ok else why, ok))
             else:
                 rows.append((NAMES[name], "готов" if self.offline.ready else "загружается", True))
@@ -352,16 +371,26 @@ class Translator:
     def states(self):
         return {name: (state, ok) for name, (_, state, ok) in zip(self.order, self.status())}
 
-    def _call(self, name, text, src, target):
+    def _call(self, name, text, src, target, spoken=False, context=()):
         if name == "offline":
             return self.offline.translate(text, guess_lang(text) if src == "auto" else src, target)
-        return {"deepl": self._deepl, "gemini": self._gemini, "groq": self._groq,
-                "google": self._google, "mymemory": self._mymemory}[name](text, src, target)
+        if name in ("deepl", "gemini", "groq"):
+            return {"deepl": self._deepl, "gemini": self._gemini, "groq": self._groq}[name](
+                text, src, target, spoken=spoken, context=context)
+        return {"google": self._google, "bing": self._bing, "mymemory": self._mymemory}[name](text, src, target)
 
     @staticmethod
-    def _llm_prompt(src, target):
+    def _llm_prompt(src, target, spoken=False, context=()):
         src_name = "the original language" if src == "auto" else LANG_NAMES.get(src, src)
-        return LLM_PROMPT.format(src=src_name, dst=LANG_NAMES.get(target, target))
+        return (LLM_PROMPT.format(src=src_name, dst=LANG_NAMES.get(target, target))
+                + (LLM_SPOKEN if spoken else "") + (LLM_CONTEXT if context else ""))
+
+    @staticmethod
+    def _llm_user(text, context=()):
+        if not context:
+            return text
+        lines = "\n".join(f"- {who}: {line}" for who, line in context[-CONTEXT_LINES:])
+        return f"Recent conversation:\n{lines}\n\nMessage: {text}"
 
     @staticmethod
     def _clean_llm(out):
@@ -424,15 +453,15 @@ class Translator:
                 raise BadKey()
         r.raise_for_status()
 
-    def _gemini(self, text, src, target):
+    def _gemini(self, text, src, target, spoken=False, context=()):
         model = self._gemini_model()
         config = {"temperature": 0.3, "maxOutputTokens": 1024}
         if re.fullmatch(r"gemini-2\.5-flash", model):
             config["thinkingConfig"] = {"thinkingBudget": 0}
         elif re.fullmatch(r"gemini-[3-9][\d.]*-flash", model):
             config["thinkingConfig"] = {"thinkingLevel": "low"}
-        body = {"systemInstruction": {"parts": [{"text": self._llm_prompt(src, target)}]},
-                "contents": [{"role": "user", "parts": [{"text": text}]}],
+        body = {"systemInstruction": {"parts": [{"text": self._llm_prompt(src, target, spoken, context)}]},
+                "contents": [{"role": "user", "parts": [{"text": self._llm_user(text, context)}]}],
                 "generationConfig": config}
         r = self._session.post(f"{GEMINI_URL}/models/{model}:generateContent",
                                headers=self._gemini_headers(), json=body, timeout=LLM_TIMEOUT)
@@ -465,11 +494,11 @@ class Translator:
         self.on_notice(f"Groq: перевожу моделью {model}.")
         return model
 
-    def _groq(self, text, src, target, retry=True):
+    def _groq(self, text, src, target, spoken=False, context=(), retry=True):
         model = self._groq_model()
         body = {"model": model, "temperature": 0.3, "max_tokens": 800,
-                "messages": [{"role": "system", "content": self._llm_prompt(src, target)},
-                             {"role": "user", "content": text}]}
+                "messages": [{"role": "system", "content": self._llm_prompt(src, target, spoken, context)},
+                             {"role": "user", "content": self._llm_user(text, context)}]}
         if model.startswith("qwen/"):
             body["reasoning_effort"] = "none"
         elif model.startswith("openai/gpt-oss"):
@@ -479,7 +508,7 @@ class Translator:
         if r.status_code == 404 and "model" in r.text:
             self.models["groq"], self._groq_auto = "", True
             if retry:
-                return self._groq(text, src, target, retry=False)
+                return self._groq(text, src, target, spoken, context, retry=False)
         if r.status_code == 401:
             raise BadKey()
         if r.status_code == 403:
@@ -492,12 +521,14 @@ class Translator:
         r.raise_for_status()
         return self._clean_llm(r.json()["choices"][0]["message"]["content"])
 
-    def _deepl(self, text, src, target):
+    def _deepl(self, text, src, target, spoken=False, context=()):
         key = self.keys["deepl"]
         host = self._deepl_host()
         data = {"text": text, "target_lang": DEEPL_TARGET.get(target, target.upper())}
         if src != "auto":
             data["source_lang"] = src.split("-")[0].upper()
+        if context:
+            data["context"] = "\n".join(line for _, line in context[-CONTEXT_LINES:])
         r = self._session.post(f"https://{host}/v2/translate", data=data, timeout=TIMEOUT,
                                headers={"Authorization": f"DeepL-Auth-Key {key}"})
         if r.status_code == 456:
@@ -508,6 +539,36 @@ class Translator:
             raise RateLimited()
         r.raise_for_status()
         return r.json()["translations"][0]["text"]
+
+    def _bing_token(self, fresh=False):
+        auth = self._bing_auth
+        if auth and not fresh and time.monotonic() < auth[4]:
+            return auth
+        html = self._session.get(BING_URL, headers=BING_HEADERS, timeout=TIMEOUT).text
+        try:
+            ig = re.search(r'IG:"([^"]+)"', html).group(1)
+            iid = re.search(r'data-iid="([^"]+)"', re.search(r'<div[^>]*id="tta_outGDCont"[^>]*>', html).group(0)).group(1)
+            key, token, ttl = json.loads(re.search(r"var params_AbusePreventionHelper\s*=\s*(\[[^\]]*\])", html).group(1))
+        except (AttributeError, ValueError):
+            raise RateLimited()
+        self._bing_auth = (ig, iid, key, token, time.monotonic() + int(ttl) / 1000 - 60)
+        return self._bing_auth
+
+    def _bing(self, text, src, target, retry=True):
+        with self._bing_lock:
+            ig, iid, key, token, _ = self._bing_token(fresh=not retry)
+        r = self._session.post(BING_URL.replace("Translator", "ttranslatev3") + f"?isVertical=1&&IG={ig}&IID={iid}",
+                               data={"text": text, "fromLang": BING_LANG.get(src, src),
+                                     "to": BING_LANG.get(target, target), "key": key, "token": token},
+                               headers=BING_HEADERS, timeout=TIMEOUT)
+        if r.status_code == 429:
+            raise RateLimited()
+        data = r.json() if r.ok else None
+        if not isinstance(data, list):
+            if retry:
+                return self._bing(text, src, target, retry=False)
+            raise RateLimited()
+        return data[0]["translations"][0]["text"]
 
     def _google(self, text, src, target):
         with self._google_lock:

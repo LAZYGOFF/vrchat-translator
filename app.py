@@ -1,3 +1,4 @@
+import collections
 import ctypes
 import itertools
 import os
@@ -69,6 +70,7 @@ class App:
         self.asr_q = queue.PriorityQueue()
         self._seq = itertools.count()
         self.tr_q = queue.Queue()
+        self._history = collections.deque(maxlen=5)
         self.translator = Translator(
             self.cfg["translator"], self.cfg["target_lang"], on_notice=lambda m: self._status(m),
             offline_device=self.cfg["offline_device"],
@@ -617,7 +619,9 @@ class App:
             try:
                 if kind == "me":
                     t0 = time.monotonic()
-                    out = self.translator.translate(text, lang, self.cfg["out_lang"], mine=True)
+                    out = self.translator.translate(text, lang, self.cfg["out_lang"], mine=True,
+                                                    spoken=lang != "auto", context=self._context())
+                    self._remember("me", text)
                     timing = f"перевод {time.monotonic() - t0:.1f} с ({self.translator.last_backend})"
                     if lang != "auto":
                         timing = f"распознано {self._mic_asr_s:.1f} с, " + timing
@@ -638,14 +642,22 @@ class App:
                 else:
                     if is_noise(text):
                         continue
-                    out = self.translator.translate(text, lang)
+                    out = self.translator.translate(text, lang, spoken=kind == "voice", context=self._context())
                     if not_worth_showing(text, out, self.cfg["target_lang"]):
                         continue
+                    self._remember("them", text)
                     self.ui_q.put(("result", kind, text, out, None, None))
             except Exception as e:
                 if kind == "me":
                     self._typing(False)
                 self.ui_q.put(("result", kind, text, None, str(e), None))
+
+    def _remember(self, who, text):
+        self._history.append((time.monotonic(), who, text))
+
+    def _context(self):
+        now = time.monotonic()
+        return [(who, text) for t, who, text in self._history if now - t < 180]
 
     def _warm_up_translator(self):
         if self.translator.mode == "offline":

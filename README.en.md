@@ -53,11 +53,12 @@ Speech and text recognition run offline. Translation uses "all services in turn"
 
 The program uses the best available translator. If it runs out of quota or fails, the program switches to the next one automatically:
 
-**DeepL → Gemini → Groq → Google → MyMemory → offline**
+**DeepL → Gemini → Groq → Bing → Google → MyMemory → offline**
 
 All services are free; none of them needs a bank card.
 
-- **Without keys** it works right away: Google → MyMemory → offline.
+- **Without keys** it works right away: Bing → Google → MyMemory → offline. Bing handles slang and Chinese better than Google.
+- **The translator remembers the conversation.** Gemini, Groq and DeepL see the last few lines (up to 3 minutes), so short replies like "yeah, sure" come out right, and words that speech recognition misheard get fixed.
 - **Keys are optional**; paste them in ⚙ → Translation (how to get them is explained below). Next to each empty key field there is a **"Create key"** button that opens the right page.
   - **DeepL**: best quality for your own messages. Limited by characters (e.g. 1,000,000 per year), so by default it is used only for your messages.
   - **Gemini** (Google AI Studio): an AI model, best with slang, ~1 s per phrase. Limited by requests per day.
@@ -182,4 +183,4 @@ Third-party parts are not included in the repository. They are downloaded during
 - Python libraries from `requirements.txt`: under their authors' licenses;
 - the offline translation model **NLLB-200** (Meta): **CC-BY-NC 4.0**, non-commercial use only;
 - Piper voices and Whisper recognition models: under the licenses stated on their pages;
-- online translators (DeepL, Gemini, Groq, Google, MyMemory): under the terms of those services; every user has their own keys.
+- online translators (DeepL, Gemini, Groq, Bing, Google, MyMemory): under the terms of those services; every user has their own keys.
